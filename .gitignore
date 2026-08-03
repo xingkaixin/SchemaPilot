@@ -1,0 +1,26 @@
+# agents
+.agents/
+.claude/
+.design/
+skills-lock.json
+
+# local state and secrets
+.schemapilot/
+databases.local.toml
+*.db
+*.db-shm
+*.db-wal
+
+# Go
+bin/
+coverage.out
+
+# web
+node_modules/
+web/dist/
+web/.vite/
+
+# editors and operating systems
+.DS_Store
+.idea/
+.vscode/

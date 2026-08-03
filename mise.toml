@@ -1,0 +1,32 @@
+[tools]
+go = "1.26.5"
+node = "24.18.1"
+pnpm = "11.18.0"
+
+[tasks.check]
+depends = ["check:go", "check:web"]
+
+[tasks."check:go"]
+run = "go test ./..."
+
+[tasks."check:web"]
+dir = "web"
+run = "pnpm check"
+
+[tasks.build]
+depends = ["build:web"]
+run = "go build -o bin/schemapilot ./cmd/schemapilot"
+
+[tasks."build:web"]
+dir = "web"
+run = "pnpm build"
+
+[tasks.dev]
+depends = ["dev:api", "dev:web"]
+
+[tasks."dev:api"]
+run = "go run ./cmd/schemapilot serve --graph examples/shop/migration.yaml --databases examples/shop/databases.toml"
+
+[tasks."dev:web"]
+dir = "web"
+run = "pnpm dev"
