@@ -42,3 +42,15 @@ The YAML file owns topology and repository-relative SQL paths. The TOML file own
 - A previously Applied Script with a different checksum stops execution unless the caller explicitly forces it.
 - A failed dependency produces a Blocked Node; it is never reported as pending or successful.
 - Resume advances the same Migration Run through a new Run Attempt and never overwrites prior execution evidence.
+- Resume accepts repaired script contents but rejects graph-structure or database-environment changes.
+- History-table initialization is serialized per driver and DSN so parallel nodes targeting the same new database cannot race during bootstrap.
+- Graph and SQL writes are atomic file replacements guarded by resource fingerprints; stale Web edits fail instead of overwriting newer content.
+
+## State ownership
+
+The target database history and the local run journal answer different questions:
+
+- `_schemapilot_history` answers whether a specific graph/node/script identity has already been applied to that database and with which checksum.
+- SQLite answers what happened during each operator Run and Attempt, including failures, blocked work, durations, rows affected, and logs.
+
+Neither can be derived from the other, so both are necessary. Database credentials are never copied into SQLite; only an environment fingerprint is stored for resume safety.
