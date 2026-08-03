@@ -13,6 +13,9 @@ run = "go test ./..."
 dir = "web"
 run = "pnpm check"
 
+[tasks."test:integration"]
+run = "./scripts/test-integration.sh"
+
 [tasks.build]
 depends = ["build:web"]
 run = "go build -o bin/schemapilot ./cmd/schemapilot"

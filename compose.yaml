@@ -1,0 +1,55 @@
+name: schemapilot-integration
+
+services:
+  postgres:
+    image: postgres:18.4
+    environment:
+      POSTGRES_DB: schemapilot
+      POSTGRES_PASSWORD: schemapilot
+      POSTGRES_USER: schemapilot
+    ports:
+      - "127.0.0.1::5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U schemapilot -d schemapilot"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    tmpfs:
+      - /var/lib/postgresql
+
+  mysql:
+    image: mysql:9.6.0
+    environment:
+      MYSQL_DATABASE: schemapilot
+      MYSQL_PASSWORD: schemapilot
+      MYSQL_ROOT_PASSWORD: schemapilot-root
+      MYSQL_USER: schemapilot
+    ports:
+      - "127.0.0.1::3306"
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u root -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 2s
+      timeout: 3s
+      retries: 45
+    tmpfs:
+      - /var/lib/mysql
+
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2025-latest
+    profiles: ["sqlserver"]
+    platform: linux/amd64
+    working_dir: /var/opt/mssql
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_PID: Developer
+      MSSQL_SA_PASSWORD: SchemaPilot_dev_2026!
+    ports:
+      - "127.0.0.1::1433"
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P \"$$MSSQL_SA_PASSWORD\" -Q \"SELECT 1\" -b"]
+      interval: 3s
+      timeout: 5s
+      retries: 60
+      start_period: 15s
+    tmpfs:
+      - /var/opt/mssql:uid=10001,gid=10001,mode=0770
