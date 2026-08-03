@@ -1,0 +1,13 @@
+version = 1
+
+[databases.primary]
+driver = "postgres"
+dsn = "${SHOP_PRIMARY_DSN}"
+max_open_connections = 4
+connection_timeout = "5s"
+
+[databases.reporting]
+driver = "postgres"
+dsn = "${SHOP_REPORTING_DSN}"
+max_open_connections = 4
+connection_timeout = "5s"
