@@ -1,10 +1,11 @@
 import { FileTree, useFileTree } from "@pierre/trees/react";
-import { Database, FileCode2, GripVertical, RefreshCw } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
-import type { DatabaseProfile, ProjectFile } from "../types";
-import { useTestDatabase } from "../hooks";
+import { FileCode2, GripVertical, Upload } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useImportScript } from "../hooks";
 import { useMigratorStore } from "../store";
-import { ActionButton, EmptyState, StatusMark } from "./ui";
+import type { DatabaseProfile, ProjectFile } from "../types";
+import { DatabaseProfilesPanel } from "./DatabaseProfilesPanel";
+import { ActionButton, EmptyState } from "./ui";
 
 function treePaths(files: ProjectFile[]) {
   const paths = new Set<string>();
@@ -27,6 +28,11 @@ export function FileSidebar({
   const activePanel = useMigratorStore((state) => state.activePanel);
   const setActivePanel = useMigratorStore((state) => state.setActivePanel);
   const selectScript = useMigratorStore((state) => state.selectScript);
+  const importScript = useImportScript();
+  const fileInput = useRef<HTMLInputElement>(null);
+  const [isImporting, setIsImporting] = useState(false);
+  const [isFileDragOver, setIsFileDragOver] = useState(false);
+  const [importResult, setImportResult] = useState<ImportResult | null>(null);
   const [search, setSearch] = useState("");
   const paths = useMemo(() => treePaths(files), [files]);
   const { model } = useFileTree({ paths, initialExpansion: "open", search: true });
@@ -39,6 +45,34 @@ export function FileSidebar({
   const filteredFiles = visibleFiles.filter((file) =>
     file.path.toLowerCase().includes(search.toLowerCase()),
   );
+  const importFiles = async (incoming: File[]) => {
+    const results: ImportResult["items"] = [];
+    setIsImporting(true);
+    setImportResult(null);
+    for (const file of incoming) {
+      const path = filePath(file);
+      if (!path.endsWith(".sql")) {
+        results.push({ path, error: "Only .sql files can be imported." });
+        continue;
+      }
+      try {
+        await importScript.mutateAsync({ path, content: await file.text() });
+        results.push({ path });
+      } catch (error) {
+        results.push({
+          path,
+          error: error instanceof Error ? error.message : "Import failed.",
+        });
+      }
+    }
+    setIsImporting(false);
+    setImportResult({ items: results });
+  };
+  const handleFileDrop = (event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    setIsFileDragOver(false);
+    if (event.dataTransfer.files.length > 0) void importFiles([...event.dataTransfer.files]);
+  };
 
   return (
     <aside className="sidebar left-sidebar" aria-label="Project files and database profiles">
@@ -62,10 +96,46 @@ export function FileSidebar({
       </div>
       {activePanel !== "connections" ? (
         <div className="sidebar-content">
+          <div
+            className={`import-dropzone ${isFileDragOver ? "import-dropzone--active" : ""}`}
+            onDragEnter={(event) => {
+              if (event.dataTransfer.types.includes("Files")) setIsFileDragOver(true);
+            }}
+            onDragOver={(event) => {
+              if (event.dataTransfer.types.includes("Files")) event.preventDefault();
+            }}
+            onDragLeave={() => setIsFileDragOver(false)}
+            onDrop={handleFileDrop}
+          >
+            <Upload size={16} />
+            <span>
+              <strong>Import SQL</strong>
+              <small>Drop files here or choose from disk.</small>
+            </span>
+            <ActionButton
+              type="button"
+              onClick={() => fileInput.current?.click()}
+              disabled={isImporting}
+            >
+              {isImporting ? "Importing…" : "Choose"}
+            </ActionButton>
+            <input
+              ref={fileInput}
+              className="visually-hidden"
+              type="file"
+              accept=".sql,text/plain"
+              multiple
+              onChange={(event) => {
+                if (event.target.files) void importFiles([...event.target.files]);
+                event.target.value = "";
+              }}
+            />
+          </div>
           <div className="drop-hint">
             <GripVertical size={17} />
-            <span>Drag a SQL file onto the graph to create a node.</span>
+            <span>Drag an imported SQL file onto the graph to create a node.</span>
           </div>
+          {importResult ? <ImportResultNotice result={importResult} /> : null}
           <div className="tree-heading">
             <span>Repository</span>
             <code>{visibleFiles.length} sql</code>
@@ -86,7 +156,7 @@ export function FileSidebar({
           <div className="drag-files" aria-label="Draggable SQL files">
             <div className="section-caption">Drop targets</div>
             {filteredFiles.length === 0 ? (
-              <EmptyState title="No SQL files" detail="The API returned an empty project tree." />
+              <EmptyState title="No SQL files" detail="Import a .sql file to begin authoring." />
             ) : null}
             {filteredFiles.map((file) => (
               <button
@@ -109,69 +179,41 @@ export function FileSidebar({
           </div>
         </div>
       ) : (
-        <ConnectionsPanel databases={databases} />
+        <DatabaseProfilesPanel databases={databases} />
       )}
     </aside>
   );
 }
 
-function ConnectionsPanel({ databases }: { databases: DatabaseProfile[] }) {
-  const testDatabase = useTestDatabase();
+interface ImportResult {
+  items: Array<{ path: string; error?: string }>;
+}
 
-  if (databases.length === 0)
-    return (
-      <div className="sidebar-content">
-        <EmptyState
-          title="No database profiles"
-          detail="Add profiles to databases.toml to test a destination."
-        />
-      </div>
-    );
+function ImportResultNotice({ result }: { result: ImportResult }) {
+  const failures = result.items.filter((item) => item.error);
   return (
-    <div className="sidebar-content connections-list">
-      <div className="connection-toolbar">
-        <span className="section-caption">Destinations</span>
-        <span className="muted-copy">from databases.toml</span>
-      </div>
-      {databases.map((database) => {
-        const isTesting = testDatabase.isPending && testDatabase.variables === database.name;
-        const result =
-          testDatabase.data && testDatabase.variables === database.name ? testDatabase.data : null;
-        return (
-          <article className="connection-card" key={database.name}>
-            <header>
-              <span className={`database-led database-led--${database.driver}`}>
-                <Database size={14} />
-              </span>
-              <code>{database.name}</code>
-              <span className="driver-badge">{database.driver}</span>
-            </header>
-            <div className="connection-dsn">{database.dsn || "DSN supplied by environment"}</div>
-            <div className="connection-footer">
-              <StatusMark status={result ? "succeeded" : database.status} />
-              <div className="spacer" />
-              <ActionButton onClick={() => testDatabase.mutate(database.name)} disabled={isTesting}>
-                {isTesting ? <RefreshCw className="spin" size={13} /> : "Test"}
-              </ActionButton>
-            </div>
-            {result ? (
-              <div className="connection-result" role="status" aria-live="polite">
-                Reachable in {result.latency_ms} ms
-              </div>
-            ) : null}
-            {testDatabase.isError && testDatabase.variables === database.name ? (
-              <div className="connection-result connection-result--error" role="alert">
-                Test failed:{" "}
-                {testDatabase.error instanceof Error ? testDatabase.error.message : "Unknown error"}
-              </div>
-            ) : null}
-          </article>
-        );
-      })}
-      <div className="credentials-note">
-        Keep secrets in environment variables. Commit only TOML profiles that reference those
-        variables.
-      </div>
+    <div className={`import-result ${failures.length ? "import-result--error" : ""}`} role="status">
+      <strong>
+        {failures.length
+          ? `${result.items.length - failures.length} imported · ${failures.length} skipped`
+          : `${result.items.length} SQL file${result.items.length === 1 ? "" : "s"} imported`}
+      </strong>
+      {failures.length ? (
+        <ul>
+          {failures.map((item) => (
+            <li key={`${item.path}-${item.error}`}>
+              <code>{item.path}</code>: {item.error}
+            </li>
+          ))}
+        </ul>
+      ) : null}
     </div>
+  );
+}
+
+function filePath(file: File) {
+  return (
+    (file as File & { webkitRelativePath?: string }).webkitRelativePath?.replace(/^\/+/, "") ||
+    file.name
   );
 }

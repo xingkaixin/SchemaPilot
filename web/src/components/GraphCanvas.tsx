@@ -18,12 +18,18 @@ import {
   getSmoothStepPath,
 } from "@xyflow/react";
 import type { ELK } from "elkjs/lib/elk-api";
-import { Database, GitBranch, GripVertical, Layers3 } from "lucide-react";
+import { Check, Database, FileCode2, GitBranch, GripVertical, Layers3 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useMigratorStore } from "../store";
-import type { DatabaseProfile, MigrationGraph, MigrationNode, NodeStatus } from "../types";
+import type {
+  DatabaseProfile,
+  MigrationGraph,
+  MigrationNode,
+  NodeStatus,
+  ProjectFile,
+} from "../types";
 import { graphToFlow } from "../lib/graph";
-import { ActionButton, EmptyState, StatusMark } from "./ui";
+import { ActionButton, StatusMark } from "./ui";
 
 let elkPromise: Promise<ELK> | undefined;
 
@@ -149,9 +155,11 @@ async function layoutNodes(nodes: Node[], edges: Edge[], direction: "RIGHT" | "D
 function FlowSurface({
   graph,
   databases,
+  files,
 }: {
   graph: MigrationGraph;
   databases: DatabaseProfile[];
+  files: ProjectFile[];
 }) {
   const selectedNodeId = useMigratorStore((state) => state.selectedNodeId);
   const selectNode = useMigratorStore((state) => state.selectNode);
@@ -262,10 +270,7 @@ function FlowSurface({
         </div>
       ) : null}
       {graph.nodes.length === 0 ? (
-        <EmptyState
-          title="Your graph is empty"
-          detail="Drag a SQL file from the repository to create the first migration node."
-        />
+        <EmptyGraphOnboarding databases={databases} files={files} />
       ) : null}
       <ReactFlow
         nodes={nodes.map((node) => ({ ...node, selected: node.id === selectedNodeId }))}
@@ -298,9 +303,11 @@ function FlowSurface({
 export function GraphCanvas({
   graph,
   databases,
+  files = [],
 }: {
   graph: MigrationGraph;
   databases: DatabaseProfile[];
+  files?: ProjectFile[];
 }) {
   const graphDirection = useMigratorStore((state) => state.graphDirection);
   const setGraphDirection = useMigratorStore((state) => state.setGraphDirection);
@@ -340,9 +347,84 @@ export function GraphCanvas({
         </button>
       </div>
       <ReactFlowProvider>
-        <FlowSurface graph={graph} databases={databases} />
+        <FlowSurface graph={graph} databases={databases} files={files} />
       </ReactFlowProvider>
     </section>
+  );
+}
+
+function EmptyGraphOnboarding({
+  databases,
+  files,
+}: {
+  databases: DatabaseProfile[];
+  files: ProjectFile[];
+}) {
+  const setActivePanel = useMigratorStore((state) => state.setActivePanel);
+  const sqlCount = files.filter(
+    (file) => file.kind !== "directory" && file.path.endsWith(".sql"),
+  ).length;
+  const isEmpty = databases.length === 0 && sqlCount === 0;
+  const steps = [
+    {
+      number: "01",
+      title: "Configure a connection",
+      detail: databases.length
+        ? `${databases.length} profile${databases.length === 1 ? "" : "s"} ready`
+        : "Add a database profile first",
+      complete: databases.length > 0,
+      panel: "connections" as const,
+      icon: Database,
+    },
+    {
+      number: "02",
+      title: "Import SQL files",
+      detail: sqlCount
+        ? `${sqlCount} SQL file${sqlCount === 1 ? "" : "s"} available`
+        : "Drop or choose .sql files",
+      complete: sqlCount > 0,
+      panel: "files" as const,
+      icon: FileCode2,
+    },
+    {
+      number: "03",
+      title: "Build and save the graph",
+      detail: "Drag an imported SQL file here to create the first node",
+      complete: false,
+      panel: "graph" as const,
+      icon: GitBranch,
+    },
+  ];
+  return (
+    <div className="graph-onboarding" aria-label="Migration workspace setup">
+      <div className="graph-onboarding-kicker">
+        {isEmpty ? "Empty migration workspace" : "Migration workspace setup"}
+      </div>
+      <h2>Turn files into a runnable graph.</h2>
+      <p>Set the destination, bring in SQL, then connect the steps you want to execute.</p>
+      <div className="graph-onboarding-steps">
+        {steps.map((step) => {
+          const Icon = step.icon;
+          return (
+            <button
+              type="button"
+              className={`graph-onboarding-step ${step.complete ? "graph-onboarding-step--complete" : ""}`}
+              key={step.number}
+              onClick={() => setActivePanel(step.panel)}
+            >
+              <span className="graph-onboarding-step-number">{step.number}</span>
+              <span className="graph-onboarding-step-icon">
+                {step.complete ? <Check size={16} /> : <Icon size={16} />}
+              </span>
+              <span className="graph-onboarding-step-copy">
+                <strong>{step.title}</strong>
+                <span>{step.detail}</span>
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 

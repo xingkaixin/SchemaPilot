@@ -1,11 +1,20 @@
 import { AlertCircle, CheckCircle2, CircleDot, Pause, Play, RotateCcw } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useResumeRun, useRunQuery, useRunsQuery, useStartRun } from "../hooks";
+import { executionBlocker } from "../lib/execution";
 import { useMigratorStore } from "../store";
 import type { RunSnapshot as RunSnapshotData } from "../types";
 import { ActionButton, EmptyState, Modal, StatusMark } from "./ui";
 
-export function RunLog({ isDirty = false }: { isDirty?: boolean }) {
+export function RunLog({
+  isDirty = false,
+  ready = false,
+  problems = [],
+}: {
+  isDirty?: boolean;
+  ready?: boolean;
+  problems?: string[];
+}) {
   const consoleOpen = useMigratorStore((state) => state.consoleOpen);
   const activeRunId = useMigratorStore((state) => state.activeRunId);
   const setActiveRunId = useMigratorStore((state) => state.setActiveRunId);
@@ -21,6 +30,7 @@ export function RunLog({ isDirty = false }: { isDirty?: boolean }) {
   const snapshot = activeRun.data;
   const canResume = snapshot?.run.status === "failed" || snapshot?.run.status === "cancelled";
   const checksumMismatch = snapshot ? hasChecksumMismatch(snapshot) : false;
+  const runBlocker = executionBlocker({ ready, isDirty, problems });
   return (
     <section className="run-log" aria-label="Migration run log">
       <div className="run-log-header">
@@ -30,17 +40,18 @@ export function RunLog({ isDirty = false }: { isDirty?: boolean }) {
         {snapshot ? <StatusMark status={snapshot.run.status} /> : null}
         <ActionButton
           tone="purple"
-          disabled={isDirty || startRun.isPending}
-          title={isDirty ? "Save graph changes before starting a run" : undefined}
+          disabled={Boolean(runBlocker) || startRun.isPending}
+          title={runBlocker || undefined}
           onClick={() => startRun.mutate(false)}
         >
           <Play size={13} /> {startRun.isPending ? "Starting…" : "Run"}
         </ActionButton>
+        {runBlocker ? <span className="run-blocker">{runBlocker}</span> : null}
         {canResume && snapshot ? (
           <ActionButton
             tone="yellow"
-            disabled={isDirty || resumeRun.isPending}
-            title={isDirty ? "Save graph changes before resuming this run" : undefined}
+            disabled={Boolean(runBlocker) || resumeRun.isPending}
+            title={runBlocker || undefined}
             onClick={() => resumeRun.mutate({ id: snapshot.run.id, force: false })}
           >
             <RotateCcw size={13} /> Resume
@@ -49,8 +60,8 @@ export function RunLog({ isDirty = false }: { isDirty?: boolean }) {
         {canResume && snapshot && checksumMismatch ? (
           <ActionButton
             tone="danger"
-            disabled={isDirty || resumeRun.isPending}
-            title={isDirty ? "Save graph changes before resuming this run" : undefined}
+            disabled={Boolean(runBlocker) || resumeRun.isPending}
+            title={runBlocker || undefined}
             onClick={() => setForceOpen(true)}
           >
             Force resume

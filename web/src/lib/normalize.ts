@@ -21,6 +21,9 @@ const asString = (input: unknown, fallback = "") =>
 const asNumber = (input: unknown, fallback = 0) =>
   typeof input === "number" && Number.isFinite(input) ? input : Number(input) || fallback;
 
+const asBoolean = (input: unknown, fallback = false) =>
+  typeof input === "boolean" ? input : input == null ? fallback : input === "true" || input === 1;
+
 const asArray = (input: unknown): unknown[] => (Array.isArray(input) ? input : []);
 
 const asRecord = (input: unknown): AnyRecord =>
@@ -119,7 +122,13 @@ export function normalizeProject(input: unknown): ProjectPayload {
     graph: normalizeGraph(value(record, "graph", "Graph") ?? record),
     databases,
     files: asArray(value(record, "files", "Files")).map(normalizeFile),
+    ready: asBoolean(value(record, "ready", "Ready")),
+    problems: asArray(value(record, "problems", "Problems")).map((item) => asString(item)),
     fingerprint: asString(value(record, "fingerprint", "Fingerprint")) || undefined,
+    databaseFingerprint:
+      asString(
+        value(record, "databaseFingerprint", "DatabaseFingerprint", "database_fingerprint"),
+      ) || undefined,
   };
 }
 

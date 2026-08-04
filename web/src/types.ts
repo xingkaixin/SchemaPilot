@@ -63,7 +63,10 @@ export interface ProjectPayload {
   graph: MigrationGraph;
   databases: DatabaseProfile[];
   files: ProjectFile[];
+  ready: boolean;
+  problems: string[];
   fingerprint?: string;
+  databaseFingerprint?: string;
 }
 
 export interface RunSummary {

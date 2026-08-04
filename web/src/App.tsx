@@ -68,7 +68,12 @@ export function App() {
         Skip to migration graph
       </a>
       <h1 className="visually-hidden">SchemaPilot migration console</h1>
-      <Header graph={observedGraph} isDirty={isDirty} />
+      <Header
+        graph={observedGraph}
+        isDirty={isDirty}
+        ready={projectData.ready}
+        problems={projectData.problems}
+      />
       <nav className="mobile-panel-nav" aria-label="Switch workspace panel">
         {(["files", "connections", "graph", "inspector"] as const).map((panel) => (
           <button
@@ -94,13 +99,19 @@ export function App() {
         <div
           className={`workspace-center ${activePanel === "graph" ? "workspace-panel--active" : ""}`}
         >
-          <GraphCanvas graph={observedGraph} databases={databaseList} />
-          <RunLog isDirty={isDirty} />
+          <GraphCanvas graph={observedGraph} databases={databaseList} files={projectData.files} />
+          <RunLog isDirty={isDirty} ready={projectData.ready} problems={projectData.problems} />
         </div>
         <div
           className={`workspace-inspector ${activePanel === "inspector" ? "workspace-panel--active" : ""}`}
         >
-          <Inspector graph={observedGraph} databases={databaseList} isDirty={isDirty} />
+          <Inspector
+            graph={observedGraph}
+            databases={databaseList}
+            isDirty={isDirty}
+            ready={projectData.ready}
+            problems={projectData.problems}
+          />
         </div>
       </div>
       {selectedScriptPath ? (

@@ -39,11 +39,19 @@ describe("project graph synchronization", () => {
       graphDraft: null,
       graphBaseline: null,
       graphFingerprint: undefined,
+      databaseFingerprint: undefined,
     });
   });
 
   it("preserves an unsaved graph draft when the project query refreshes", async () => {
-    const project: ProjectPayload = { graph, databases: [], files: [], fingerprint: "v1" };
+    const project: ProjectPayload = {
+      graph,
+      databases: [],
+      files: [],
+      ready: true,
+      problems: [],
+      fingerprint: "v1",
+    };
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue(

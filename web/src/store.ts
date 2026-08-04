@@ -12,6 +12,7 @@ interface MigratorStore {
   graphDraft: GraphDraft | null;
   graphBaseline: GraphDraft | null;
   graphFingerprint?: string;
+  databaseFingerprint?: string;
   selectedNodeId: string | null;
   selectedScriptPath: string | null;
   graphDirection: GraphDirection;
@@ -21,6 +22,7 @@ interface MigratorStore {
   setGraphDraft: (graph: GraphDraft) => void;
   synchronizeGraph: (graph: GraphDraft, fingerprint?: string) => void;
   commitGraph: (graph: GraphDraft, fingerprint?: string) => void;
+  setDatabaseFingerprint: (fingerprint?: string) => void;
   updateNode: (nodeName: string, update: Partial<MigrationNode>) => void;
   updateGraph: (update: Partial<GraphDraft>) => void;
   moveScript: (nodeName: string, fromIndex: number, toIndex: number) => void;
@@ -42,6 +44,7 @@ export const useMigratorStore = create<MigratorStore>((set) => ({
   graphDraft: null,
   graphBaseline: null,
   graphFingerprint: undefined,
+  databaseFingerprint: undefined,
   selectedNodeId: null,
   selectedScriptPath: null,
   graphDirection: "right",
@@ -73,6 +76,7 @@ export const useMigratorStore = create<MigratorStore>((set) => ({
       graphBaseline: cloneGraph(graph),
       graphFingerprint: fingerprint,
     }),
+  setDatabaseFingerprint: (databaseFingerprint) => set({ databaseFingerprint }),
   updateNode: (nodeName, update) =>
     set((state) => {
       if (!state.graphDraft) return state;

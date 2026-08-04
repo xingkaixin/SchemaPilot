@@ -1,12 +1,24 @@
 import { Play, Save } from "lucide-react";
 import { useSaveGraph, useStartRun } from "../hooks";
+import { executionBlocker } from "../lib/execution";
 import { useMigratorStore } from "../store";
 import type { MigrationGraph } from "../types";
 import { ActionButton } from "./ui";
 
-export function Header({ graph, isDirty }: { graph: MigrationGraph; isDirty: boolean }) {
+export function Header({
+  graph,
+  isDirty,
+  ready,
+  problems,
+}: {
+  graph: MigrationGraph;
+  isDirty: boolean;
+  ready: boolean;
+  problems?: string[];
+}) {
   const startRun = useStartRun();
   const saveGraph = useSaveGraph();
+  const runBlocker = executionBlocker({ ready, isDirty, problems });
   return (
     <header className="app-header">
       <div className="brand-lockup">
@@ -35,13 +47,14 @@ export function Header({ graph, isDirty }: { graph: MigrationGraph; isDirty: boo
         </ActionButton>
         <ActionButton
           tone="purple"
-          disabled={isDirty || startRun.isPending}
-          title={isDirty ? "Save graph changes before starting a run" : undefined}
+          disabled={Boolean(runBlocker) || startRun.isPending}
+          title={runBlocker || undefined}
           onClick={() => startRun.mutate(false)}
         >
           <Play size={14} /> {startRun.isPending ? "Starting…" : "Run graph"}
         </ActionButton>
       </div>
+      {runBlocker ? <span className="run-blocker">{runBlocker}</span> : null}
       {saveGraph.isError ? (
         <span className="mutation-error" role="alert">
           {saveGraph.error instanceof Error ? saveGraph.error.message : "Save failed"}

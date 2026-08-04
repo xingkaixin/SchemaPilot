@@ -15,6 +15,7 @@ import { createJavaScriptRegexEngine } from "shiki/engine/javascript";
 import sqlLanguage from "shiki/langs/sql.mjs";
 import githubLightTheme from "shiki/themes/github-light.mjs";
 import { useScriptQuery, useSaveGraph, useSaveScript, useStartRun } from "../hooks";
+import { executionBlocker } from "../lib/execution";
 import { useMigratorStore } from "../store";
 import { nodeById } from "../lib/graph";
 import type {
@@ -33,15 +34,20 @@ export function Inspector({
   graph,
   databases = [],
   isDirty,
+  ready = false,
+  problems = [],
 }: {
   graph: MigrationGraph;
   databases?: DatabaseProfile[];
   isDirty: boolean;
+  ready?: boolean;
+  problems?: string[];
 }) {
   const selectedNodeId = useMigratorStore((state) => state.selectedNodeId);
   const selectedScriptPath = useMigratorStore((state) => state.selectedScriptPath);
   const node = nodeById(graph, selectedNodeId);
-  if (!node) return <GraphInspector graph={graph} isDirty={isDirty} />;
+  if (!node)
+    return <GraphInspector graph={graph} isDirty={isDirty} ready={ready} problems={problems} />;
   return (
     <NodeInspector
       graph={graph}
@@ -49,13 +55,26 @@ export function Inspector({
       selectedScriptPath={selectedScriptPath}
       databases={databases}
       isDirty={isDirty}
+      ready={ready}
+      problems={problems}
     />
   );
 }
 
-function GraphInspector({ graph, isDirty }: { graph: MigrationGraph; isDirty: boolean }) {
+function GraphInspector({
+  graph,
+  isDirty,
+  ready,
+  problems,
+}: {
+  graph: MigrationGraph;
+  isDirty: boolean;
+  ready: boolean;
+  problems: string[];
+}) {
   const updateGraph = useMigratorStore((state) => state.updateGraph);
   const saveGraph = useSaveGraph();
+  const runBlocker = executionBlocker({ ready, isDirty, problems });
   return (
     <aside className="inspector" aria-label="Migration graph settings">
       <div className="inspector-header">
@@ -63,9 +82,15 @@ function GraphInspector({ graph, isDirty }: { graph: MigrationGraph; isDirty: bo
           <div className="eyebrow">Graph</div>
           <h2>Graph settings</h2>
         </div>
-        <StatusMark status="ready" />
+        <StatusMark status={runBlocker ? "blocked" : "ready"} />
       </div>
       <div className="inspector-body">
+        {runBlocker ? (
+          <div className="callout callout--yellow" role="status">
+            <span className="callout-mark">!</span>
+            <span>{runBlocker}</span>
+          </div>
+        ) : null}
         <FieldLabel htmlFor="graph-name">Name</FieldLabel>
         <input
           id="graph-name"
@@ -128,12 +153,16 @@ function NodeInspector({
   selectedScriptPath,
   databases,
   isDirty,
+  ready,
+  problems,
 }: {
   graph: MigrationGraph;
   node: MigrationNode;
   selectedScriptPath: string | null;
   databases: DatabaseProfile[];
   isDirty: boolean;
+  ready: boolean;
+  problems: string[];
 }) {
   const updateNode = useMigratorStore((state) => state.updateNode);
   const moveScript = useMigratorStore((state) => state.moveScript);
@@ -141,6 +170,7 @@ function NodeInspector({
   const selectScript = useMigratorStore((state) => state.selectScript);
   const saveGraph = useSaveGraph();
   const startRun = useStartRun();
+  const runBlocker = executionBlocker({ ready, isDirty, problems });
   const [editorPath, setEditorPath] = useState<string | null>(null);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
   const onDragEnd = (event: DragEndEvent) => {
@@ -161,6 +191,12 @@ function NodeInspector({
         <StatusMark status={node.status ?? "pending"} />
       </div>
       <div className="inspector-body inspector-scroll">
+        {runBlocker ? (
+          <div className="callout callout--yellow" role="status">
+            <span className="callout-mark">!</span>
+            <span>{runBlocker}</span>
+          </div>
+        ) : null}
         {node.error ? (
           <div className="failure-card">
             <strong>Failed</strong>
@@ -272,8 +308,8 @@ function NodeInspector({
         </ActionButton>
         <ActionButton
           tone="purple"
-          disabled={isDirty || startRun.isPending}
-          title={isDirty ? "Save graph changes before starting a run" : undefined}
+          disabled={Boolean(runBlocker) || startRun.isPending}
+          title={runBlocker || undefined}
           onClick={() => startRun.mutate(false)}
         >
           <Play size={14} /> Run graph

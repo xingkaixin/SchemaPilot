@@ -5,7 +5,7 @@ import {
   normalizeSnapshot,
 } from "./normalize";
 import type { GraphDraft } from "../store";
-import type { MigrationGraph } from "../types";
+import type { DatabaseDriver, MigrationGraph } from "../types";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "";
 
@@ -43,8 +43,8 @@ async function responseError(response: Response) {
   }
 }
 
-export async function fetchProject() {
-  return normalizeProject(await request<unknown>("/api/v1/project"));
+export async function fetchProject(signal?: AbortSignal) {
+  return normalizeProject(await request<unknown>("/api/v1/project", { signal }));
 }
 
 export async function saveGraph(graph: GraphDraft, fingerprint?: string) {
@@ -71,6 +71,49 @@ export async function saveScript(path: string, sql: string, checksum?: string) {
       headers: checksum ? { "If-Match": quoteETag(checksum) } : undefined,
     }),
     path,
+  );
+}
+
+export async function importScript(path: string, content: string) {
+  return normalizeScriptDocument(
+    await request<unknown>("/api/v1/scripts", {
+      method: "POST",
+      body: JSON.stringify({ path, content }),
+    }),
+    path,
+  );
+}
+
+export interface DatabaseProfileInput {
+  name: string;
+  driver: DatabaseDriver;
+  dsn?: string;
+  maxOpenConnections?: number;
+  connectionTimeout?: string;
+}
+
+export async function saveDatabase(profile: DatabaseProfileInput, fingerprint?: string) {
+  const body: Record<string, unknown> = {
+    driver: profile.driver,
+    max_open_connections: profile.maxOpenConnections ?? 4,
+    connection_timeout: profile.connectionTimeout ?? "5s",
+  };
+  if (profile.dsn?.trim()) body.dsn = profile.dsn.trim();
+  return normalizeProject(
+    await request<unknown>(`/api/v1/databases/${encodeURIComponent(profile.name)}`, {
+      method: "PUT",
+      body: JSON.stringify(body),
+      headers: fingerprint ? { "If-Match": quoteETag(fingerprint) } : undefined,
+    }),
+  );
+}
+
+export async function deleteDatabase(name: string, fingerprint?: string) {
+  return normalizeProject(
+    await request<unknown>(`/api/v1/databases/${encodeURIComponent(name)}`, {
+      method: "DELETE",
+      headers: fingerprint ? { "If-Match": quoteETag(fingerprint) } : undefined,
+    }),
   );
 }
 
