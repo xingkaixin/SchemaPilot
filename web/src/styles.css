@@ -482,9 +482,47 @@ pre,
 .drag-file-row:active {
   cursor: grabbing;
 }
+.drag-file-row--dragging {
+  opacity: 0.35;
+}
 .drag-file-row code {
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.drag-resource-count {
+  min-width: 18px;
+  margin-left: auto;
+  padding: 1px 4px;
+  border: 1px solid var(--line);
+  background: var(--bone);
+  color: var(--muted);
+  font-family: "Space Mono", monospace;
+  font-size: 8px;
+  text-align: center;
+}
+.drag-resource-overlay {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  max-width: 320px;
+  padding: 7px 10px;
+  border: 2px solid var(--ink);
+  background: var(--yellow);
+  box-shadow: 3px 3px 0 var(--ink);
+  cursor: grabbing;
+  font-size: 10px;
+}
+.drag-resource-overlay code {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.drag-resource-overlay span {
+  margin-left: 4px;
+  color: var(--muted);
+  font-family: "Space Mono", monospace;
+  font-size: 8px;
   white-space: nowrap;
 }
 .connections-list {
@@ -656,6 +694,9 @@ pre,
   background: var(--bone);
   background-image: radial-gradient(var(--line) 1.3px, transparent 1.3px);
   background-size: 18px 18px;
+}
+.graph-surface--drag-over {
+  box-shadow: inset 0 0 0 4px var(--purple);
 }
 .graph-onboarding {
   position: absolute;

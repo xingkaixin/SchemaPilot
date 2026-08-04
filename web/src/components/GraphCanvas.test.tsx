@@ -33,7 +33,7 @@ describe("GraphCanvas SQL drop", () => {
     fireEvent.drop(screen.getByTestId("graph-canvas"), {
       dataTransfer: {
         getData: (type: string) =>
-          type === "text/migrator-script" ? "users/001_create_users.sql" : "",
+          type === "text/migrator-resource" ? "users/001_create_users.sql" : "",
       },
     });
 
@@ -46,5 +46,34 @@ describe("GraphCanvas SQL drop", () => {
       },
     ]);
     expect(useMigratorStore.getState().selectedNodeId).toBe("users");
+  });
+
+  it("creates one node with every SQL file dropped as a directory", () => {
+    const files = [
+      { path: "users/002_add_email.sql", kind: "file" as const },
+      { path: "users/001_create_users.sql", kind: "file" as const },
+    ];
+    render(
+      <GraphCanvas
+        graph={emptyGraph}
+        databases={[{ name: "primary", driver: "postgres", dsn: "postgres://primary" }]}
+        files={files}
+      />,
+    );
+
+    fireEvent.drop(screen.getByTestId("graph-canvas"), {
+      dataTransfer: {
+        getData: (type: string) => (type === "text/plain" ? "users/" : ""),
+      },
+    });
+
+    expect(useMigratorStore.getState().graphDraft?.nodes).toEqual([
+      {
+        name: "users",
+        database: "primary",
+        dependsOn: [],
+        scripts: [{ path: "users/001_create_users.sql" }, { path: "users/002_add_email.sql" }],
+      },
+    ]);
   });
 });

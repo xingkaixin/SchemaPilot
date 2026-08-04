@@ -1,7 +1,9 @@
+import { useDraggable } from "@dnd-kit/core";
 import { FileTree, useFileTree } from "@pierre/trees/react";
-import { FileCode2, GripVertical, Upload } from "lucide-react";
+import { FileCode2, Folder, GripVertical, Upload } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useImportScript } from "../hooks";
+import { graphResources, type GraphResource } from "../lib/graphResources";
 import { useMigratorStore } from "../store";
 import type { DatabaseProfile, ProjectFile } from "../types";
 import { DatabaseProfilesPanel } from "./DatabaseProfilesPanel";
@@ -35,15 +37,24 @@ export function FileSidebar({
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
   const [search, setSearch] = useState("");
   const paths = useMemo(() => treePaths(files), [files]);
-  const { model } = useFileTree({ paths, initialExpansion: "open", search: true });
+  const { model } = useFileTree({
+    paths,
+    initialExpansion: "open",
+    search: true,
+    dragAndDrop: {
+      canDrag: (draggedPaths) => draggedPaths.length === 1,
+      canDrop: () => false,
+    },
+  });
   useEffect(() => {
     model.resetPaths(paths);
   }, [model, paths]);
   const visibleFiles = files.filter(
     (file) => file.kind !== "directory" && file.path.endsWith(".sql"),
   );
-  const filteredFiles = visibleFiles.filter((file) =>
-    file.path.toLowerCase().includes(search.toLowerCase()),
+  const resources = useMemo(() => graphResources(files), [files]);
+  const filteredResources = resources.filter((resource) =>
+    resource.path.toLowerCase().includes(search.toLowerCase()),
   );
   const importFiles = async (incoming: File[]) => {
     const results: ImportResult["items"] = [];
@@ -133,7 +144,7 @@ export function FileSidebar({
           </div>
           <div className="drop-hint">
             <GripVertical size={17} />
-            <span>Drag an imported SQL file onto the graph to create a node.</span>
+            <span>Drag a SQL file or directory onto the graph to create a node.</span>
           </div>
           {importResult ? <ImportResultNotice result={importResult} /> : null}
           <div className="tree-heading">
@@ -153,28 +164,17 @@ export function FileSidebar({
           <div className="pierre-tree-wrap" aria-label="Migration files">
             <FileTree model={model} style={{ height: "100%" }} />
           </div>
-          <div className="drag-files" aria-label="Draggable SQL files">
-            <div className="section-caption">Drop targets</div>
-            {filteredFiles.length === 0 ? (
+          <div className="drag-files" aria-label="Resources to drag onto the graph">
+            <div className="section-caption">Drag to graph</div>
+            {filteredResources.length === 0 ? (
               <EmptyState title="No SQL files" detail="Import a .sql file to begin authoring." />
             ) : null}
-            {filteredFiles.map((file) => (
-              <button
-                type="button"
-                className="drag-file-row"
-                draggable
-                key={file.path}
-                onDragStart={(event) => {
-                  event.dataTransfer.effectAllowed = "copy";
-                  event.dataTransfer.setData("text/migrator-script", file.path);
-                  event.dataTransfer.setData("text/plain", file.path);
-                }}
-                onClick={() => selectScript(file.path)}
-                title="Drag onto graph or select to preview"
-              >
-                <FileCode2 size={14} />
-                <code>{file.path}</code>
-              </button>
+            {filteredResources.map((resource) => (
+              <DraggableGraphResource
+                key={`${resource.kind}:${resource.path}`}
+                resource={resource}
+                onSelect={resource.kind === "file" ? () => selectScript(resource.path) : undefined}
+              />
             ))}
           </div>
         </div>
@@ -182,6 +182,41 @@ export function FileSidebar({
         <DatabaseProfilesPanel databases={databases} />
       )}
     </aside>
+  );
+}
+
+function DraggableGraphResource({
+  resource,
+  onSelect,
+}: {
+  resource: GraphResource;
+  onSelect?: () => void;
+}) {
+  const { attributes, isDragging, listeners, setNodeRef } = useDraggable({
+    id: `graph-resource:${resource.kind}:${resource.path}`,
+    data: { resource },
+  });
+  const Icon = resource.kind === "directory" ? Folder : FileCode2;
+  return (
+    <button
+      ref={setNodeRef}
+      type="button"
+      className={`drag-file-row ${isDragging ? "drag-file-row--dragging" : ""}`}
+      onClick={onSelect}
+      title={
+        resource.kind === "directory"
+          ? `Drag onto graph to add ${resource.scripts.length} SQL files`
+          : "Drag onto graph or select to preview"
+      }
+      {...attributes}
+      {...listeners}
+    >
+      <Icon size={14} />
+      <code>{resource.path}</code>
+      {resource.kind === "directory" ? (
+        <span className="drag-resource-count">{resource.scripts.length}</span>
+      ) : null}
+    </button>
   );
 }
 

@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { addGraphResource, type GraphResource } from "./lib/graphResources";
 import type {
   ActivePanel,
   ErrorPolicy,
@@ -26,6 +27,7 @@ interface MigratorStore {
   updateNode: (nodeName: string, update: Partial<MigrationNode>) => void;
   updateGraph: (update: Partial<GraphDraft>) => void;
   moveScript: (nodeName: string, fromIndex: number, toIndex: number) => void;
+  addResource: (resource: GraphResource, database: string) => void;
   addScript: (nodeName: string, path: string) => void;
   removeScript: (nodeName: string, path: string) => void;
   addDependency: (source: string, target: string) => void;
@@ -117,6 +119,17 @@ export const useMigratorStore = create<MigratorStore>((set) => ({
       const [script] = node.scripts.splice(fromIndex, 1);
       if (script) node.scripts.splice(toIndex, 0, script);
       return { graphDraft };
+    }),
+  addResource: (resource, database) =>
+    set((state) => {
+      if (!state.graphDraft) return state;
+      const result = addGraphResource(state.graphDraft, resource, database);
+      if (!result) return state;
+      return {
+        graphDraft: result.graph,
+        selectedNodeId: result.nodeName,
+        selectedScriptPath: null,
+      };
     }),
   addScript: (nodeName, path) =>
     set((state) => {

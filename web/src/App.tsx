@@ -5,6 +5,7 @@ import { ErrorState, LoadingState } from "./components/ui";
 import { Header } from "./components/Header";
 import { FileSidebar } from "./components/FileSidebar";
 import { GraphCanvas } from "./components/GraphCanvas";
+import { GraphResourceDnd } from "./components/GraphResourceDnd";
 import { Inspector, SqlPreview } from "./components/Inspector";
 import { RunLog } from "./components/RunLog";
 import type { MigrationGraph, RunSnapshot } from "./types";
@@ -90,30 +91,32 @@ export function App() {
           </button>
         ))}
       </nav>
-      <div className="workspace-grid">
-        <div
-          className={`workspace-sidebar ${activePanel === "files" || activePanel === "connections" ? "workspace-panel--active" : ""}`}
-        >
-          <FileSidebar files={projectData.files} databases={databaseList} />
+      <GraphResourceDnd database={databaseList[0]?.name ?? ""}>
+        <div className="workspace-grid">
+          <div
+            className={`workspace-sidebar ${activePanel === "files" || activePanel === "connections" ? "workspace-panel--active" : ""}`}
+          >
+            <FileSidebar files={projectData.files} databases={databaseList} />
+          </div>
+          <div
+            className={`workspace-center ${activePanel === "graph" ? "workspace-panel--active" : ""}`}
+          >
+            <GraphCanvas graph={observedGraph} databases={databaseList} files={projectData.files} />
+            <RunLog isDirty={isDirty} ready={projectData.ready} problems={projectData.problems} />
+          </div>
+          <div
+            className={`workspace-inspector ${activePanel === "inspector" ? "workspace-panel--active" : ""}`}
+          >
+            <Inspector
+              graph={observedGraph}
+              databases={databaseList}
+              isDirty={isDirty}
+              ready={projectData.ready}
+              problems={projectData.problems}
+            />
+          </div>
         </div>
-        <div
-          className={`workspace-center ${activePanel === "graph" ? "workspace-panel--active" : ""}`}
-        >
-          <GraphCanvas graph={observedGraph} databases={databaseList} files={projectData.files} />
-          <RunLog isDirty={isDirty} ready={projectData.ready} problems={projectData.problems} />
-        </div>
-        <div
-          className={`workspace-inspector ${activePanel === "inspector" ? "workspace-panel--active" : ""}`}
-        >
-          <Inspector
-            graph={observedGraph}
-            databases={databaseList}
-            isDirty={isDirty}
-            ready={projectData.ready}
-            problems={projectData.problems}
-          />
-        </div>
-      </div>
+      </GraphResourceDnd>
       {selectedScriptPath ? (
         <SqlPreview
           path={selectedScriptPath}

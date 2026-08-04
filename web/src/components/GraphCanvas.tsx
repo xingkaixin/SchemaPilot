@@ -1,3 +1,4 @@
+import { useDroppable } from "@dnd-kit/core";
 import {
   Background,
   BaseEdge,
@@ -20,6 +21,7 @@ import {
 import type { ELK } from "elkjs/lib/elk-api";
 import { Check, Database, FileCode2, GitBranch, GripVertical, Layers3 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
+import { graphDropTargetId, graphResourceForPath } from "../lib/graphResources";
 import { useMigratorStore } from "../store";
 import type {
   DatabaseProfile,
@@ -165,12 +167,13 @@ function FlowSurface({
   const selectNode = useMigratorStore((state) => state.selectNode);
   const addDependency = useMigratorStore((state) => state.addDependency);
   const removeDependency = useMigratorStore((state) => state.removeDependency);
-  const addScript = useMigratorStore((state) => state.addScript);
+  const addResource = useMigratorStore((state) => state.addResource);
   const graphDirection = useMigratorStore((state) => state.graphDirection);
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const [layouting, setLayouting] = useState(false);
   const { fitView } = useReactFlow();
+  const { isOver, setNodeRef } = useDroppable({ id: graphDropTargetId });
 
   useEffect(() => {
     const next = graphToFlow(graph);
@@ -227,39 +230,27 @@ function FlowSurface({
     (event: React.DragEvent<HTMLDivElement>) => {
       event.preventDefault();
       const path =
-        event.dataTransfer.getData("text/migrator-script") ||
+        event.dataTransfer.getData("text/migrator-resource") ||
         event.dataTransfer.getData("text/plain");
-      if (!path || !path.endsWith(".sql")) return;
-      const draft = useMigratorStore.getState().graphDraft;
-      if (!draft) return;
-      const baseName = nodeNameForPath(path);
-      const existing = draft.nodes.find((node) => node.name === baseName);
-      if (existing) {
-        addScript(existing.name, path);
-        selectNode(existing.name);
-        return;
-      }
-      const name = uniqueNodeName(
-        baseName,
-        draft.nodes.map((node) => node.name),
-      );
-      const database = databases[0]?.name ?? "";
-      useMigratorStore.getState().setGraphDraft({
-        ...draft,
-        nodes: [...draft.nodes, { name, database, dependsOn: [], scripts: [{ path }] }],
-      });
-      selectNode(name);
+      const resource = graphResourceForPath(files, path);
+      if (resource) addResource(resource, databases[0]?.name ?? "");
     },
-    [addScript, databases, selectNode],
+    [addResource, databases, files],
   );
 
   const handleDragOver = useCallback((event: React.DragEvent<HTMLDivElement>) => {
-    if (event.dataTransfer.types.includes("text/migrator-script")) event.preventDefault();
+    if (
+      event.dataTransfer.types.includes("text/migrator-resource") ||
+      event.dataTransfer.types.includes("text/plain")
+    ) {
+      event.preventDefault();
+    }
   }, []);
 
   return (
     <div
-      className="graph-surface"
+      ref={setNodeRef}
+      className={`graph-surface ${isOver ? "graph-surface--drag-over" : ""}`}
       onDrop={handleDrop}
       onDragOver={handleDragOver}
       data-testid="graph-canvas"
@@ -389,7 +380,7 @@ function EmptyGraphOnboarding({
     {
       number: "03",
       title: "Build and save the graph",
-      detail: "Drag an imported SQL file here to create the first node",
+      detail: "Drag a SQL file or directory here to create the first node",
       complete: false,
       panel: "graph" as const,
       icon: GitBranch,
@@ -426,20 +417,4 @@ function EmptyGraphOnboarding({
       </div>
     </div>
   );
-}
-
-function nodeNameForPath(path: string) {
-  const segments = path.split("/").filter(Boolean);
-  const raw = segments.at(-2) ?? segments.at(-1)?.replace(/\.sql$/, "") ?? "migration";
-  const normalized = raw.replace(/[^A-Za-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "");
-  if (!normalized) return "migration";
-  return /^[A-Za-z]/.test(normalized) ? normalized : `migration-${normalized}`;
-}
-
-function uniqueNodeName(base: string, existing: string[]) {
-  const names = new Set(existing);
-  if (!names.has(base)) return base;
-  let suffix = 2;
-  while (names.has(`${base}-${suffix}`)) suffix += 1;
-  return `${base}-${suffix}`;
 }
