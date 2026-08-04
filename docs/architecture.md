@@ -23,7 +23,7 @@ target databases   local SQLite state
 
 ## Module seams
 
-- The project loader has one interface: load and validate a Migration Graph plus its Database Profiles. It hides parsing, environment expansion, safe path resolution, script loading, checksums, and DAG validation.
+- The project module exposes a tolerant workspace inspection path for Web authoring and a strict project load path for execution. It hides parsing, environment expansion, safe path resolution, script loading, checksums, and DAG validation. Missing files become authoring problems, while run and resume still fail strict validation.
 - The execution module has two commands: start a Migration Run and resume one. It hides dependency scheduling, bounded concurrency, sequential script execution, error policy, state transitions, and applied-script checks.
 - The database seam is real because PostgreSQL, MySQL, SQL Server, and an in-memory test adapter differ in connection and history-table behavior.
 - The run-store seam is real because production uses SQLite while execution tests use an in-memory adapter.
@@ -44,7 +44,7 @@ The YAML file owns topology and repository-relative SQL paths. The TOML file own
 - Resume advances the same Migration Run through a new Run Attempt and never overwrites prior execution evidence.
 - Resume accepts repaired script contents but rejects graph-structure or database-environment changes.
 - History-table initialization is serialized per driver and DSN so parallel nodes targeting the same new database cannot race during bootstrap.
-- Graph and SQL writes are atomic file replacements guarded by resource fingerprints; stale Web edits fail instead of overwriting newer content.
+- Graph, Database Profile, and SQL writes are serialized, use atomic file replacement where mutation is allowed, and are guarded by resource fingerprints; stale Web edits fail instead of overwriting newer content.
 
 ## State ownership
 

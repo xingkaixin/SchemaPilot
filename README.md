@@ -126,17 +126,21 @@ schemapilot serve migration.yaml --listen 127.0.0.1:8080
 ## Web 控制台
 
 ```bash
-schemapilot serve migration.yaml
+schemapilot serve
 ```
 
-打开 `http://127.0.0.1:8080` 后可以：
+`serve` 不要求当前目录已经存在 `migration.yaml` 或 `databases.toml`。打开 `http://127.0.0.1:8080` 后，可以从空工作区开始：
 
+- 新建、编辑、删除并测试 TOML 数据库连接；
+- 从本地导入 SQL 文件；
 - 用 React Flow 查看、连线和自动布局 DAG；
 - 从文件树拖拽 SQL 到画布，新建节点或追加脚本；
 - 编辑节点数据库、依赖、脚本顺序和错误策略；
 - 使用 Shiki 预览、Monaco Editor 编辑 SQL；
 - 测试 TOML 中的数据库连接；
 - 启动、观察、恢复 Migration Run，并查看节点/脚本日志。
+
+传入尚不存在的图路径也可以指定工作区位置，例如 `schemapilot serve deploy/migration.yaml`；生成的 `databases.toml`、SQL 文件和运行日志默认与该图位于同一工作区。
 
 未保存的图草稿会禁止执行；保存图和 SQL 都使用版本校验，避免静默覆盖并发修改。数据库 DSN 在 API 和界面中会脱敏。
 
