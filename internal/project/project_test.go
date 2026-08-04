@@ -9,9 +9,124 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/schemapilot/schemapilot/internal/migration"
 )
+
+func TestInspectEmptyWorkspace(t *testing.T) {
+	root := t.TempDir()
+	workspace, err := Inspect(
+		context.Background(),
+		filepath.Join(root, "migration.yaml"),
+		filepath.Join(root, "databases.toml"),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if workspace.Ready {
+		t.Fatal("empty workspace is ready")
+	}
+	if workspace.Graph.Version != 1 || workspace.Graph.Parallelism != 4 || len(workspace.Graph.Nodes) != 0 {
+		t.Fatalf("default graph = %+v", workspace.Graph)
+	}
+	if len(workspace.Databases) != 0 || len(workspace.Files) != 0 || workspace.Fingerprint == "" || workspace.DatabaseFingerprint == "" {
+		t.Fatalf("empty workspace = %+v", workspace)
+	}
+}
+
+func TestInspectWorkspaceWithoutGraphListsSQLFiles(t *testing.T) {
+	root := t.TempDir()
+	if err := os.Mkdir(filepath.Join(root, "users"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "users", "001.sql"), []byte("SELECT 1;"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	workspace, err := Inspect(context.Background(), filepath.Join(root, "migration.yaml"), filepath.Join(root, "databases.toml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if workspace.Ready || strings.Join(workspace.Files, ",") != "users/001.sql" {
+		t.Fatalf("workspace = %+v", workspace)
+	}
+}
+
+func TestInspectKeepsGraphWhenReferencedScriptIsMissing(t *testing.T) {
+	root := t.TempDir()
+	graphPath := filepath.Join(root, "migration.yaml")
+	databasesPath := filepath.Join(root, "databases.toml")
+	graph := `version: 1
+name: repairable
+nodes:
+  users:
+    database: primary
+    scripts: [users/001.sql]
+`
+	if err := os.WriteFile(graphPath, []byte(graph), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(databasesPath, []byte(validDatabases()), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	workspace, err := Inspect(context.Background(), graphPath, databasesPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if workspace.Ready || len(workspace.Graph.Nodes) != 1 || workspace.Graph.Nodes[0].Scripts[0].Path != "users/001.sql" {
+		t.Fatalf("incomplete workspace = %+v", workspace)
+	}
+	if !strings.Contains(strings.Join(workspace.Problems, "\n"), "read SQL file") {
+		t.Fatalf("workspace problems = %v", workspace.Problems)
+	}
+	if _, err := Load(context.Background(), graphPath, databasesPath); err == nil || !strings.Contains(err.Error(), "read SQL file") {
+		t.Fatalf("strict load error = %v", err)
+	}
+}
+
+func TestSaveAndDeleteDatabaseProfile(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, "databases.toml")
+	dsn := "postgres://alice:secret@localhost/app"
+	input := DatabaseProfileInput{
+		Driver:             migration.DriverPostgres,
+		DSN:                &dsn,
+		MaxOpenConnections: 7,
+		ConnectionTimeout:  3 * time.Second,
+	}
+	if err := SaveDatabaseProfile(context.Background(), path, "primary", input); err != nil {
+		t.Fatal(err)
+	}
+	profiles, err := LoadDatabases(context.Background(), path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if profile := profiles["primary"]; profile.DSN != dsn || profile.MaxOpenConnections != 7 || profile.ConnectionTimeout != 3*time.Second {
+		t.Fatalf("saved profile = %+v", profile)
+	}
+	input.DSN = nil
+	input.MaxOpenConnections = 9
+	if err := SaveDatabaseProfile(context.Background(), path, "primary", input); err != nil {
+		t.Fatal(err)
+	}
+	profiles, err = LoadDatabases(context.Background(), path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if profile := profiles["primary"]; profile.DSN != dsn || profile.MaxOpenConnections != 9 {
+		t.Fatalf("updated profile = %+v", profile)
+	}
+	if err := DeleteDatabaseProfile(context.Background(), path, "primary"); err != nil {
+		t.Fatal(err)
+	}
+	profiles, err = LoadDatabases(context.Background(), path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(profiles) != 0 {
+		t.Fatalf("profiles after delete = %+v", profiles)
+	}
+}
 
 func TestLoad(t *testing.T) {
 	tests := []struct {

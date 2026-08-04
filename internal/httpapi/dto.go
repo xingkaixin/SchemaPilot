@@ -7,13 +7,17 @@ import (
 	"github.com/schemapilot/schemapilot/internal/database"
 	"github.com/schemapilot/schemapilot/internal/execution"
 	"github.com/schemapilot/schemapilot/internal/migration"
+	"github.com/schemapilot/schemapilot/internal/project"
 )
 
 type projectResponse struct {
-	Graph       graphDTO      `json:"graph"`
-	Databases   []databaseDTO `json:"databases"`
-	Files       []string      `json:"files"`
-	Fingerprint string        `json:"fingerprint"`
+	Graph               graphDTO      `json:"graph"`
+	Databases           []databaseDTO `json:"databases"`
+	Files               []string      `json:"files"`
+	Fingerprint         string        `json:"fingerprint"`
+	DatabaseFingerprint string        `json:"database_fingerprint"`
+	Ready               bool          `json:"ready"`
+	Problems            []string      `json:"problems"`
 }
 
 type graphDTO struct {
@@ -54,6 +58,18 @@ type scriptResponse struct {
 
 type scriptUpdateRequest struct {
 	Content string `json:"content"`
+}
+
+type scriptCreateRequest struct {
+	Path    string `json:"path"`
+	Content string `json:"content"`
+}
+
+type databaseUpdateRequest struct {
+	Driver             migration.Driver `json:"driver"`
+	DSN                *string          `json:"dsn"`
+	MaxOpenConnections int              `json:"max_open_connections"`
+	ConnectionTimeout  string           `json:"connection_timeout"`
 }
 
 type startRunRequest struct {
@@ -134,10 +150,10 @@ type databaseTestResponse struct {
 	LatencyMS int64  `json:"latency_ms"`
 }
 
-func projectDTO(project migration.Project, files []string) projectResponse {
-	databases := make([]databaseDTO, 0, len(project.Databases))
-	for _, name := range sortedDatabaseNames(project.Databases) {
-		profile := project.Databases[name]
+func projectDTO(workspace project.Workspace) projectResponse {
+	databases := make([]databaseDTO, 0, len(workspace.Databases))
+	for _, name := range sortedDatabaseNames(workspace.Databases) {
+		profile := workspace.Databases[name]
 		databases = append(databases, databaseDTO{
 			Name:               profile.Name,
 			Driver:             profile.Driver,
@@ -148,10 +164,13 @@ func projectDTO(project migration.Project, files []string) projectResponse {
 	}
 
 	return projectResponse{
-		Graph:       graphToDTO(project.Graph),
-		Databases:   databases,
-		Files:       files,
-		Fingerprint: project.Fingerprint,
+		Graph:               graphToDTO(workspace.Graph),
+		Databases:           databases,
+		Files:               workspace.Files,
+		Fingerprint:         workspace.Fingerprint,
+		DatabaseFingerprint: workspace.DatabaseFingerprint,
+		Ready:               workspace.Ready,
+		Problems:            append([]string(nil), workspace.Problems...),
 	}
 }
 

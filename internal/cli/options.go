@@ -72,13 +72,21 @@ func openRuntime(ctx context.Context, graphPath, databasesPath, statePath string
 	if err != nil {
 		return nil, err
 	}
+	runtime, err := openServiceRuntime(statePath)
+	if err != nil {
+		return nil, err
+	}
+	runtime.project = loaded
+	return runtime, nil
+}
+
+func openServiceRuntime(statePath string) (*runtime, error) {
 	store, err := openStore(statePath)
 	if err != nil {
 		return nil, err
 	}
 	connector := database.NewConnector()
 	return &runtime{
-		project:   loaded,
 		engine:    execution.NewEngine(store, connector),
 		connector: connector,
 		store:     store,

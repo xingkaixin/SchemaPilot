@@ -90,3 +90,7 @@ func marshalGraph(graph migration.Graph) ([]byte, error) {
 	}
 	return yaml.Marshal(config)
 }
+
+func marshalDatabases(config databasesConfig) ([]byte, error) {
+	return toml.Marshal(config)
+}

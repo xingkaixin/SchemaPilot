@@ -83,6 +83,27 @@ func Load(ctx context.Context, graphPath, databasesPath string) (migration.Proje
 }
 
 func loadGraph(ctx context.Context, graphPath, graphRoot, graphRootReal string, data []byte) (migration.Graph, error) {
+	graph, err := loadGraphDefinition(ctx, graphPath, graphRoot, data)
+	if err != nil {
+		return migration.Graph{}, err
+	}
+	for nodeIndex := range graph.Nodes {
+		for scriptIndex, script := range graph.Nodes[nodeIndex].Scripts {
+			if err := contextError(ctx); err != nil {
+				return migration.Graph{}, err
+			}
+			_, content, loadErr := loadScript(graphRoot, graphRootReal, script.Path)
+			if loadErr != nil {
+				fieldPath := fmt.Sprintf("nodes.%s.scripts[%d]", graph.Nodes[nodeIndex].Name, scriptIndex)
+				return migration.Graph{}, wrapField(graphPath, fieldPath, loadErr)
+			}
+			graph.Nodes[nodeIndex].Scripts[scriptIndex] = loadedScript(script.Path, content)
+		}
+	}
+	return graph, nil
+}
+
+func loadGraphDefinition(ctx context.Context, graphPath, graphRoot string, data []byte) (migration.Graph, error) {
 	config, err := decodeGraph(data)
 	if err != nil {
 		return migration.Graph{}, wrapField(graphPath, "yaml", err)
@@ -125,7 +146,7 @@ func loadGraph(ctx context.Context, graphPath, graphRoot, graphRootReal string, 
 		if err := contextError(ctx); err != nil {
 			return migration.Graph{}, err
 		}
-		node, nodeErr := loadNode(config.Nodes[nodeName], nodeName, graphPath, graphRoot, graphRootReal)
+		node, nodeErr := loadNodeDefinition(config.Nodes[nodeName], nodeName, graphPath, graphRoot)
 		if nodeErr != nil {
 			return migration.Graph{}, nodeErr
 		}
@@ -134,7 +155,7 @@ func loadGraph(ctx context.Context, graphPath, graphRoot, graphRootReal string, 
 	return migration.Graph{Version: version, Name: name, Parallelism: parallelism, OnError: onError, Nodes: nodes}, nil
 }
 
-func loadNode(config nodeConfig, nodeName, graphPath, graphRoot, graphRootReal string) (migration.Node, error) {
+func loadNodeDefinition(config nodeConfig, nodeName, graphPath, graphRoot string) (migration.Node, error) {
 	fieldPath := fmt.Sprintf("nodes.%s", nodeName)
 	if config.Database == nil {
 		return migration.Node{}, wrapField(graphPath, fieldPath+".database", errors.New("field is required"))
@@ -152,34 +173,21 @@ func loadNode(config nodeConfig, nodeName, graphPath, graphRoot, graphRootReal s
 	scripts := make([]migration.Script, 0, len(config.Scripts))
 	for index, rawPath := range config.Scripts {
 		scriptPath := fmt.Sprintf("%s.scripts[%d]", fieldPath, index)
-		relativePath, content, resolveErr := loadScript(graphRoot, graphRootReal, rawPath)
+		relativePath, resolveErr := normalizeScriptReference(graphRoot, rawPath)
 		if resolveErr != nil {
 			return migration.Node{}, wrapField(graphPath, scriptPath, resolveErr)
 		}
-		sum := sha256.Sum256(content)
-		scripts = append(scripts, migration.Script{Path: relativePath, Checksum: hex.EncodeToString(sum[:]), SQL: string(content)})
+		scripts = append(scripts, migration.Script{Path: relativePath})
 	}
 	return migration.Node{Name: nodeName, Database: *config.Database, DependsOn: config.DependsOn, Scripts: scripts, ErrorPolicy: onError}, nil
 }
 
 func loadScript(root, rootReal, rawPath string) (string, []byte, error) {
-	if rawPath == "" {
-		return "", nil, errors.New("path is empty")
-	}
-	if filepath.IsAbs(rawPath) || path.IsAbs(filepath.ToSlash(rawPath)) || windowsAbsolutePath(rawPath) {
-		return "", nil, errors.New("path must be relative to the graph directory")
-	}
-	cleanPath := filepath.Clean(filepath.Join(root, filepath.FromSlash(rawPath)))
-	relativePath, err := filepath.Rel(root, cleanPath)
+	relativePath, err := normalizeScriptReference(root, rawPath)
 	if err != nil {
-		return "", nil, fmt.Errorf("resolve path: %w", err)
+		return "", nil, err
 	}
-	if relativePath == ".." || strings.HasPrefix(relativePath, ".."+string(filepath.Separator)) {
-		return "", nil, errors.New("path escapes the graph directory")
-	}
-	if filepath.Ext(relativePath) != ".sql" {
-		return "", nil, errors.New("path must use the .sql extension")
-	}
+	cleanPath := filepath.Join(root, filepath.FromSlash(relativePath))
 	content, err := os.ReadFile(cleanPath)
 	if err != nil {
 		return "", nil, fmt.Errorf("read SQL file: %w", err)
@@ -191,7 +199,33 @@ func loadScript(root, rootReal, rawPath string) (string, []byte, error) {
 	if !withinDirectory(rootReal, realPath) {
 		return "", nil, errors.New("path escapes the graph directory through a symbolic link")
 	}
-	return filepath.ToSlash(relativePath), content, nil
+	return relativePath, content, nil
+}
+
+func normalizeScriptReference(root, rawPath string) (string, error) {
+	if rawPath == "" {
+		return "", errors.New("path is empty")
+	}
+	if filepath.IsAbs(rawPath) || path.IsAbs(filepath.ToSlash(rawPath)) || windowsAbsolutePath(rawPath) {
+		return "", errors.New("path must be relative to the graph directory")
+	}
+	cleanPath := filepath.Clean(filepath.Join(root, filepath.FromSlash(rawPath)))
+	relativePath, err := filepath.Rel(root, cleanPath)
+	if err != nil {
+		return "", fmt.Errorf("resolve path: %w", err)
+	}
+	if relativePath == ".." || strings.HasPrefix(relativePath, ".."+string(filepath.Separator)) {
+		return "", errors.New("path escapes the graph directory")
+	}
+	if filepath.Ext(relativePath) != ".sql" {
+		return "", errors.New("path must use the .sql extension")
+	}
+	return filepath.ToSlash(relativePath), nil
+}
+
+func loadedScript(path string, content []byte) migration.Script {
+	sum := sha256.Sum256(content)
+	return migration.Script{Path: path, Checksum: hex.EncodeToString(sum[:]), SQL: string(content)}
 }
 
 func loadDatabases(databasesPath string, data []byte) (map[string]migration.DatabaseProfile, error) {
@@ -214,6 +248,9 @@ func loadDatabases(databasesPath string, data []byte) (map[string]migration.Data
 	for _, name := range names {
 		profileValues := document.Databases[name]
 		fieldPath := fmt.Sprintf("databases.%s", name)
+		if !migration.ValidName(name) {
+			return nil, wrapField(databasesPath, fieldPath, errors.New("name must start with a letter and contain only letters, digits, underscores, or hyphens"))
+		}
 		if profileValues.Driver == nil {
 			return nil, wrapField(databasesPath, fieldPath+".driver", errors.New("field is required"))
 		}
@@ -433,10 +470,14 @@ func SaveGraph(ctx context.Context, graphPath string, graph migration.Graph) err
 	if err != nil {
 		return wrapField(absPath, "graph", err)
 	}
-	directory := filepath.Dir(absPath)
-	temporary, err := os.CreateTemp(directory, "."+filepath.Base(absPath)+".tmp-*")
+	return writeConfigFile(ctx, absPath, data, targetMode)
+}
+
+func writeConfigFile(ctx context.Context, path string, data []byte, mode os.FileMode) error {
+	directory := filepath.Dir(path)
+	temporary, err := os.CreateTemp(directory, "."+filepath.Base(path)+".tmp-*")
 	if err != nil {
-		return wrapField(absPath, "graph path", err)
+		return wrapField(path, "path", err)
 	}
 	temporaryName := temporary.Name()
 	removeTemporary := true
@@ -447,22 +488,22 @@ func SaveGraph(ctx context.Context, graphPath string, graph migration.Graph) err
 		}
 	}()
 	if _, err := temporary.Write(data); err != nil {
-		return wrapField(absPath, "graph path", err)
+		return wrapField(path, "path", err)
 	}
-	if err := temporary.Chmod(targetMode); err != nil {
-		return wrapField(absPath, "graph path", err)
+	if err := temporary.Chmod(mode); err != nil {
+		return wrapField(path, "path", err)
 	}
 	if err := temporary.Sync(); err != nil {
-		return wrapField(absPath, "graph path", err)
+		return wrapField(path, "path", err)
 	}
 	if err := temporary.Close(); err != nil {
-		return wrapField(absPath, "graph path", err)
+		return wrapField(path, "path", err)
 	}
 	if err := contextError(ctx); err != nil {
 		return err
 	}
-	if err := os.Rename(temporaryName, absPath); err != nil {
-		return wrapField(absPath, "graph path", err)
+	if err := os.Rename(temporaryName, path); err != nil {
+		return wrapField(path, "path", err)
 	}
 	removeTemporary = false
 	return nil
@@ -477,13 +518,11 @@ func FileTree(ctx context.Context, graphPath string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	info, err := os.Stat(absPath)
-	if err != nil {
-		return nil, wrapField(absPath, "graph path", err)
-	}
-	root := absPath
-	if !info.IsDir() {
-		root = filepath.Dir(absPath)
+	root := filepath.Dir(absPath)
+	if info, statErr := os.Stat(absPath); statErr == nil && info.IsDir() {
+		root = absPath
+	} else if statErr != nil && !errors.Is(statErr, os.ErrNotExist) {
+		return nil, wrapField(absPath, "graph path", statErr)
 	}
 	rootReal, err := filepath.EvalSymlinks(root)
 	if err != nil {

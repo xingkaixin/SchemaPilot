@@ -20,6 +20,7 @@ import (
 	"github.com/schemapilot/schemapilot/internal/database"
 	"github.com/schemapilot/schemapilot/internal/execution"
 	"github.com/schemapilot/schemapilot/internal/migration"
+	"github.com/schemapilot/schemapilot/internal/project"
 	"github.com/schemapilot/schemapilot/internal/runstore"
 )
 
@@ -43,6 +44,176 @@ func TestProjectEndpointMasksDSNAndSetsETag(t *testing.T) {
 	}
 	if body.Databases[0].DSN != "postgres://alice:%2A%2A%2A@db.example.com/app?sslmode=require" {
 		t.Fatalf("masked DSN = %q", body.Databases[0].DSN)
+	}
+}
+
+func TestEmptyWorkspaceCanBeAuthoredThroughAPI(t *testing.T) {
+	fixture := newEmptyHTTPFixture(t, nil)
+	empty := fixture.request(http.MethodGet, "/api/v1/project", nil, nil)
+	if empty.Code != http.StatusOK {
+		t.Fatalf("GET empty workspace status = %d, body=%s", empty.Code, empty.Body.String())
+	}
+	var initial projectResponse
+	decodeResponse(t, empty, &initial)
+	if initial.Ready || len(initial.Graph.Nodes) != 0 || initial.Fingerprint == "" || initial.DatabaseFingerprint == "" {
+		t.Fatalf("empty workspace = %+v", initial)
+	}
+
+	imported := fixture.request(http.MethodPost, "/api/v1/scripts", map[string]any{
+		"path": "users/001_create_users.sql", "content": "CREATE TABLE users (id bigint);",
+	}, nil)
+	if imported.Code != http.StatusCreated {
+		t.Fatalf("POST script status = %d, body=%s", imported.Code, imported.Body.String())
+	}
+	if duplicate := fixture.request(http.MethodPost, "/api/v1/scripts", map[string]any{
+		"path": "users/001_create_users.sql", "content": "SELECT 1;",
+	}, nil); duplicate.Code != http.StatusConflict {
+		t.Fatalf("duplicate POST script status = %d, body=%s", duplicate.Code, duplicate.Body.String())
+	}
+
+	dsn := "postgres://alice:secret@localhost/app"
+	configured := fixture.request(http.MethodPut, "/api/v1/databases/primary", map[string]any{
+		"driver": "postgres", "dsn": dsn, "max_open_connections": 4, "connection_timeout": "5s",
+	}, map[string]string{"If-Match": quotedETag(initial.DatabaseFingerprint)})
+	if configured.Code != http.StatusOK {
+		t.Fatalf("PUT database status = %d, body=%s", configured.Code, configured.Body.String())
+	}
+	var withDatabase projectResponse
+	decodeResponse(t, configured, &withDatabase)
+	if len(withDatabase.Databases) != 1 || withDatabase.Ready {
+		t.Fatalf("configured workspace = %+v", withDatabase)
+	}
+
+	graph := map[string]any{
+		"version": 1, "name": "shop", "parallelism": 2, "on_error": "halt",
+		"nodes": []any{map[string]any{
+			"name": "users", "database": "primary", "depends_on": []string{},
+			"scripts": []any{map[string]any{"path": "users/001_create_users.sql"}},
+		}},
+	}
+	saved := fixture.request(http.MethodPut, "/api/v1/graph", graph, map[string]string{"If-Match": empty.Header().Get("ETag")})
+	if saved.Code != http.StatusOK {
+		t.Fatalf("PUT graph status = %d, body=%s", saved.Code, saved.Body.String())
+	}
+	var ready projectResponse
+	decodeResponse(t, saved, &ready)
+	if !ready.Ready || len(ready.Problems) != 0 {
+		t.Fatalf("ready workspace = %+v", ready)
+	}
+
+	started := fixture.request(http.MethodPost, "/api/v1/runs", `{}`, nil)
+	if started.Code != http.StatusAccepted {
+		t.Fatalf("POST run status = %d, body=%s", started.Code, started.Body.String())
+	}
+}
+
+func TestMissingGraphScriptCanBeImportedThroughAPI(t *testing.T) {
+	fixture := newEmptyHTTPFixture(t, nil)
+	graph := `version: 1
+name: repairable
+nodes:
+  users:
+    database: primary
+    scripts: [users/001.sql]
+`
+	if err := os.WriteFile(filepath.Join(fixture.root, "migration.yaml"), []byte(graph), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	databases := `version = 1
+[databases.primary]
+driver = "postgres"
+dsn = "postgres://primary"
+`
+	if err := os.WriteFile(filepath.Join(fixture.root, "databases.toml"), []byte(databases), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	before := fixture.request(http.MethodGet, "/api/v1/project", nil, nil)
+	if before.Code != http.StatusOK {
+		t.Fatalf("GET incomplete workspace status = %d, body=%s", before.Code, before.Body.String())
+	}
+	var incomplete projectResponse
+	decodeResponse(t, before, &incomplete)
+	if incomplete.Ready || len(incomplete.Graph.Nodes) != 1 {
+		t.Fatalf("incomplete workspace = %+v", incomplete)
+	}
+
+	imported := fixture.request(http.MethodPost, "/api/v1/scripts", map[string]string{
+		"path": "users/001.sql", "content": "SELECT 1;",
+	}, nil)
+	if imported.Code != http.StatusCreated {
+		t.Fatalf("POST missing script status = %d, body=%s", imported.Code, imported.Body.String())
+	}
+	after := fixture.request(http.MethodGet, "/api/v1/project", nil, nil)
+	var repaired projectResponse
+	decodeResponse(t, after, &repaired)
+	if !repaired.Ready || len(repaired.Problems) != 0 {
+		t.Fatalf("repaired workspace = %+v", repaired)
+	}
+}
+
+func TestDatabaseProfileMutationPreservesDSNAndUsesETag(t *testing.T) {
+	fixture := newEmptyHTTPFixture(t, nil)
+	initial := fixture.request(http.MethodGet, "/api/v1/project", nil, nil)
+	var empty projectResponse
+	decodeResponse(t, initial, &empty)
+	dsn := "postgres://alice:secret@localhost/app"
+	created := fixture.request(http.MethodPut, "/api/v1/databases/primary", map[string]any{
+		"driver": "postgres", "dsn": dsn, "max_open_connections": 4, "connection_timeout": "5s",
+	}, map[string]string{"If-Match": quotedETag(empty.DatabaseFingerprint)})
+	if created.Code != http.StatusOK {
+		t.Fatalf("create database status = %d, body=%s", created.Code, created.Body.String())
+	}
+	var current projectResponse
+	decodeResponse(t, created, &current)
+	if created.Header().Get("ETag") != quotedETag(current.DatabaseFingerprint) {
+		t.Fatalf("database ETag = %q, fingerprint=%q", created.Header().Get("ETag"), current.DatabaseFingerprint)
+	}
+
+	updated := fixture.request(http.MethodPut, "/api/v1/databases/primary", map[string]any{
+		"driver": "postgres", "max_open_connections": 9, "connection_timeout": "3s",
+	}, map[string]string{"If-Match": quotedETag(current.DatabaseFingerprint)})
+	if updated.Code != http.StatusOK {
+		t.Fatalf("update database status = %d, body=%s", updated.Code, updated.Body.String())
+	}
+	profiles, err := project.LoadDatabases(context.Background(), filepath.Join(fixture.root, "databases.toml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if profile := profiles["primary"]; profile.DSN != dsn || profile.MaxOpenConnections != 9 || profile.ConnectionTimeout != 3*time.Second {
+		t.Fatalf("updated profile = %+v", profile)
+	}
+
+	stale := fixture.request(http.MethodDelete, "/api/v1/databases/primary", nil, map[string]string{"If-Match": quotedETag(current.DatabaseFingerprint)})
+	if stale.Code != http.StatusPreconditionFailed {
+		t.Fatalf("stale DELETE database status = %d, body=%s", stale.Code, stale.Body.String())
+	}
+	var latest projectResponse
+	decodeResponse(t, updated, &latest)
+	deleted := fixture.request(http.MethodDelete, "/api/v1/databases/primary", nil, map[string]string{"If-Match": quotedETag(latest.DatabaseFingerprint)})
+	if deleted.Code != http.StatusOK {
+		t.Fatalf("DELETE database status = %d, body=%s", deleted.Code, deleted.Body.String())
+	}
+}
+
+func TestScriptCreateRejectsEscapes(t *testing.T) {
+	fixture := newEmptyHTTPFixture(t, nil)
+	outside := t.TempDir()
+	if err := os.Symlink(outside, filepath.Join(fixture.root, "linked")); err != nil {
+		t.Skipf("symbolic links are unavailable: %v", err)
+	}
+	for _, path := range []string{"../outside.sql", "linked/outside.sql", "linked/nested/outside.sql"} {
+		response := fixture.request(http.MethodPost, "/api/v1/scripts", map[string]string{
+			"path": path, "content": "SELECT 'secret';",
+		}, nil)
+		if response.Code != http.StatusBadRequest {
+			t.Errorf("POST escaped script %q status = %d, body=%s", path, response.Code, response.Body.String())
+		}
+	}
+	if _, err := os.Stat(filepath.Join(outside, "outside.sql")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("escaped upload created outside file: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(outside, "nested")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("escaped upload created outside directory: %v", err)
 	}
 }
 
@@ -79,7 +250,7 @@ func TestScriptEndpointsUseETagAndRejectEscapes(t *testing.T) {
 		t.Fatalf("stale PUT changed file: %q", content)
 	}
 
-	unknown := fixture.request(http.MethodPut, "/api/v1/scripts?path=user.sql", `{"content":"SELECT 4;","extra":true}`, nil)
+	unknown := fixture.request(http.MethodPut, "/api/v1/scripts?path=user.sql", `{"content":"SELECT 4;","extra":true}`, map[string]string{"If-Match": updated.Header().Get("ETag")})
 	if unknown.Code != http.StatusBadRequest {
 		t.Fatalf("unknown script DTO status = %d, body=%s", unknown.Code, unknown.Body.String())
 	}
@@ -108,13 +279,17 @@ func TestGraphPutUsesETagAndStrictDTO(t *testing.T) {
 	fixture := newHTTPFixture(t, "SELECT 1;", nil)
 	projectResponse := fixture.request(http.MethodGet, "/api/v1/project", nil, nil)
 	currentETag := projectResponse.Header().Get("ETag")
+	valid := `{"version":1,"name":"shop","parallelism":3,"on_error":"halt","nodes":[{"name":"user","database":"primary","depends_on":[],"scripts":[{"path":"user.sql"}]}]}`
+	blind := fixture.request(http.MethodPut, "/api/v1/graph", valid, nil)
+	if blind.Code != http.StatusPreconditionFailed {
+		t.Fatalf("graph PUT without If-Match status = %d, body=%s", blind.Code, blind.Body.String())
+	}
 
 	unknown := fixture.request(http.MethodPut, "/api/v1/graph", `{"version":1,"name":"shop","parallelism":2,"on_error":"halt","nodes":[],"extra":true}`, map[string]string{"If-Match": currentETag})
 	if unknown.Code != http.StatusBadRequest {
 		t.Fatalf("unknown graph DTO status = %d, body=%s", unknown.Code, unknown.Body.String())
 	}
 
-	valid := `{"version":1,"name":"shop","parallelism":3,"on_error":"halt","nodes":[{"name":"user","database":"primary","depends_on":[],"scripts":[{"path":"user.sql"}]}]}`
 	updated := fixture.request(http.MethodPut, "/api/v1/graph", valid, map[string]string{"If-Match": currentETag})
 	if updated.Code != http.StatusOK {
 		t.Fatalf("valid graph PUT status = %d, body=%s", updated.Code, updated.Body.String())
@@ -127,6 +302,31 @@ func TestGraphPutUsesETagAndStrictDTO(t *testing.T) {
 	stale := fixture.request(http.MethodPut, "/api/v1/graph", valid, map[string]string{"If-Match": currentETag})
 	if stale.Code != http.StatusPreconditionFailed {
 		t.Fatalf("stale graph PUT status = %d, body=%s", stale.Code, stale.Body.String())
+	}
+}
+
+func TestConcurrentGraphUpdatesRejectOneStaleWrite(t *testing.T) {
+	fixture := newHTTPFixture(t, "SELECT 1;", nil)
+	current := fixture.request(http.MethodGet, "/api/v1/project", nil, nil)
+	etag := current.Header().Get("ETag")
+	graphs := []string{
+		`{"version":1,"name":"shop-one","parallelism":3,"on_error":"halt","nodes":[{"name":"user","database":"primary","depends_on":[],"scripts":[{"path":"user.sql"}]}]}`,
+		`{"version":1,"name":"shop-two","parallelism":4,"on_error":"halt","nodes":[{"name":"user","database":"primary","depends_on":[],"scripts":[{"path":"user.sql"}]}]}`,
+	}
+	start := make(chan struct{})
+	statuses := make(chan int, len(graphs))
+	for _, graph := range graphs {
+		go func() {
+			<-start
+			response := fixture.request(http.MethodPut, "/api/v1/graph", graph, map[string]string{"If-Match": etag})
+			statuses <- response.Code
+		}()
+	}
+	close(start)
+	first, second := <-statuses, <-statuses
+	if !((first == http.StatusOK && second == http.StatusPreconditionFailed) ||
+		(first == http.StatusPreconditionFailed && second == http.StatusOK)) {
+		t.Fatalf("concurrent graph PUT statuses = %d, %d", first, second)
 	}
 }
 
@@ -300,6 +500,40 @@ dsn = "postgres://alice:super-secret@db.example.com/app?sslmode=require"
 	})
 	if err != nil {
 		store.Close()
+		t.Fatal(err)
+	}
+	fixture := &httpFixture{root: root, store: store, connector: connector, target: target, handler: server.Handler()}
+	t.Cleanup(func() { _ = store.Close() })
+	return fixture
+}
+
+func newEmptyHTTPFixture(t *testing.T, assets fs.FS) *httpFixture {
+	t.Helper()
+	root := t.TempDir()
+	if err := os.Mkdir(filepath.Join(root, ".schemapilot"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	store, err := runstore.Open(filepath.Join(root, ".schemapilot", "runs.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	target := database.NewFakeTargetDatabase()
+	connector := database.NewFakeConnector()
+	if err := connector.SetDatabase("primary", target); err != nil {
+		_ = store.Close()
+		t.Fatal(err)
+	}
+	server, err := New(Config{
+		Context:       context.Background(),
+		Engine:        execution.NewEngine(store, connector),
+		Connector:     connector,
+		GraphPath:     filepath.Join(root, "migration.yaml"),
+		DatabasesPath: filepath.Join(root, "databases.toml"),
+		Assets:        assets,
+		Logger:        slog.New(slog.NewTextHandler(io.Discard, nil)),
+	})
+	if err != nil {
+		_ = store.Close()
 		t.Fatal(err)
 	}
 	fixture := &httpFixture{root: root, store: store, connector: connector, target: target, handler: server.Handler()}

@@ -2,6 +2,12 @@
 
 This context describes a database migration as a dependency graph whose nodes apply ordered SQL scripts to named databases, with every execution recorded for inspection and recovery.
 
+## Authoring
+
+**Migration Workspace**:
+A local authoring area that may begin empty and holds the Database Profiles, Migration Scripts, and Migration Graph needed to become runnable.
+_Avoid_: Project, workflow directory, repository
+
 ## Definition
 
 **Migration Graph**:

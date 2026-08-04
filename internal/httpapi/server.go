@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/schemapilot/schemapilot/internal/execution"
@@ -30,6 +31,7 @@ type Server struct {
 	databasesPath string
 	assets        fs.FS
 	logger        *slog.Logger
+	workspaceMu   sync.Mutex
 }
 
 func New(config Config) (*Server, error) {
@@ -68,7 +70,10 @@ func (server *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/v1/project", server.getProject)
 	mux.HandleFunc("PUT /api/v1/graph", server.putGraph)
 	mux.HandleFunc("GET /api/v1/scripts", server.getScript)
+	mux.HandleFunc("POST /api/v1/scripts", server.postScript)
 	mux.HandleFunc("PUT /api/v1/scripts", server.putScript)
+	mux.HandleFunc("PUT /api/v1/databases/{name}", server.putDatabase)
+	mux.HandleFunc("DELETE /api/v1/databases/{name}", server.deleteDatabase)
 	mux.HandleFunc("POST /api/v1/databases/{name}/test", server.testDatabase)
 	mux.HandleFunc("GET /api/v1/runs", server.getRuns)
 	mux.HandleFunc("POST /api/v1/runs", server.startRun)

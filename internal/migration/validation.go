@@ -12,6 +12,10 @@ const CurrentGraphVersion = 1
 
 var namePattern = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_-]*$`)
 
+func ValidName(name string) bool {
+	return namePattern.MatchString(name)
+}
+
 type ValidationError struct {
 	Problems []string
 }
@@ -77,7 +81,7 @@ func validateGraph(graph Graph, databases map[string]DatabaseProfile) []string {
 	if graph.Version != CurrentGraphVersion {
 		problems = append(problems, fmt.Sprintf("version must be %d", CurrentGraphVersion))
 	}
-	if !namePattern.MatchString(graph.Name) {
+	if !ValidName(graph.Name) {
 		problems = append(problems, "name must start with a letter and contain only letters, digits, underscores, or hyphens")
 	}
 	if graph.Parallelism < 1 {
@@ -124,7 +128,7 @@ func validateGraph(graph Graph, databases map[string]DatabaseProfile) []string {
 
 func validateNode(node Node, nodeNames map[string]struct{}, databases map[string]DatabaseProfile, scriptOwners map[string]string) []string {
 	problems := make([]string, 0)
-	if !namePattern.MatchString(node.Name) {
+	if !ValidName(node.Name) {
 		problems = append(problems, fmt.Sprintf("node %q has an invalid name", node.Name))
 	}
 	if _, exists := databases[node.Database]; !exists {

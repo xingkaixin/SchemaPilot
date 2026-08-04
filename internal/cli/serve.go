@@ -27,18 +27,23 @@ func newServeCommand(stdout io.Writer) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			runtime, err := openRuntime(command.Context(), graphPath, databasesPath, statePath)
+			logger := slog.New(slog.NewTextHandler(stdout, nil))
+			logger.InfoContext(command.Context(), "opening migration workspace",
+				"graph", graphPath,
+				"databases", databasesPath,
+				"state", statePath,
+			)
+			runtime, err := openServiceRuntime(statePath)
 			if err != nil {
 				return err
 			}
 			defer runtime.store.Close()
-			logger := slog.New(slog.NewTextHandler(stdout, nil))
 			api, err := httpapi.New(httpapi.Config{
 				Context:       command.Context(),
 				Engine:        runtime.engine,
 				Connector:     runtime.connector,
-				GraphPath:     runtime.project.GraphPath,
-				DatabasesPath: runtime.project.DatabasesPath,
+				GraphPath:     graphPath,
+				DatabasesPath: databasesPath,
 				Assets:        webui.Assets(),
 				Logger:        logger,
 			})
