@@ -19,6 +19,7 @@ interface MigratorStore {
   graphDirection: GraphDirection;
   activePanel: ActivePanel;
   consoleOpen: boolean;
+  sidebarOpen: boolean;
   activeRunId: string | null;
   setGraphDraft: (graph: GraphDraft) => void;
   synchronizeGraph: (graph: GraphDraft, fingerprint?: string) => void;
@@ -38,6 +39,7 @@ interface MigratorStore {
   setGraphDirection: (direction: GraphDirection) => void;
   setActivePanel: (activePanel: ActivePanel) => void;
   toggleConsole: () => void;
+  toggleSidebar: () => void;
   setActiveRunId: (id: string | null) => void;
 }
 
@@ -53,6 +55,7 @@ export const useMigratorStore = create<MigratorStore>((set) => ({
   graphDirection: "right",
   activePanel: "graph",
   consoleOpen: true,
+  sidebarOpen: true,
   activeRunId: null,
   setGraphDraft: (graphDraft) => set({ graphDraft: cloneGraph(graphDraft) }),
   synchronizeGraph: (graph, fingerprint) =>
@@ -192,6 +195,7 @@ export const useMigratorStore = create<MigratorStore>((set) => ({
   setGraphDirection: (graphDirection) => set({ graphDirection }),
   setActivePanel: (activePanel) => set({ activePanel }),
   toggleConsole: () => set((state) => ({ consoleOpen: !state.consoleOpen })),
+  toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
   setActiveRunId: (activeRunId) => set({ activeRunId }),
 }));
 

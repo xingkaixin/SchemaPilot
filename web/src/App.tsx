@@ -19,6 +19,7 @@ export function App() {
   const selectedScriptPath = useMigratorStore((state) => state.selectedScriptPath);
   const selectScript = useMigratorStore((state) => state.selectScript);
   const activeRunId = useMigratorStore((state) => state.activeRunId);
+  const sidebarOpen = useMigratorStore((state) => state.sidebarOpen);
   const run = useRunQuery(activeRunId);
   const projectData = project.data;
   const databaseList = useMemo(() => projectData?.databases ?? [], [projectData?.databases]);
@@ -92,7 +93,7 @@ export function App() {
         ))}
       </nav>
       <GraphResourceDnd>
-        <div className="workspace-grid">
+        <div className={`workspace-grid ${sidebarOpen ? "" : "workspace-grid--sidebar-collapsed"}`}>
           <div
             className={`workspace-sidebar ${activePanel === "files" || activePanel === "connections" ? "workspace-panel--active" : ""}`}
           >

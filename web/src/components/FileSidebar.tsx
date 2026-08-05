@@ -1,6 +1,13 @@
 import { useDraggable } from "@dnd-kit/core";
 import { FileTree, useFileTree } from "@pierre/trees/react";
-import { FileCode2, Folder, GripVertical, Upload } from "lucide-react";
+import {
+  FileCode2,
+  Folder,
+  GripVertical,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Upload,
+} from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useImportScript } from "../hooks";
 import { graphResources, type GraphResource } from "../lib/graphResources";
@@ -30,6 +37,8 @@ export function FileSidebar({
 }) {
   const activePanel = useMigratorStore((state) => state.activePanel);
   const setActivePanel = useMigratorStore((state) => state.setActivePanel);
+  const sidebarOpen = useMigratorStore((state) => state.sidebarOpen);
+  const toggleSidebar = useMigratorStore((state) => state.toggleSidebar);
   const selectScript = useMigratorStore((state) => state.selectScript);
   const importScript = useImportScript();
   const fileInput = useRef<HTMLInputElement>(null);
@@ -88,6 +97,24 @@ export function FileSidebar({
     );
   };
 
+  if (!sidebarOpen) {
+    return (
+      <aside
+        className="sidebar left-sidebar sidebar--collapsed"
+        aria-label="Project files and database profiles"
+      >
+        <button
+          className="sidebar-toggle"
+          aria-label="Expand sidebar"
+          title="Expand sidebar"
+          onClick={toggleSidebar}
+        >
+          <PanelLeftOpen size={15} />
+        </button>
+      </aside>
+    );
+  }
+
   return (
     <aside className="sidebar left-sidebar" aria-label="Project files and database profiles">
       <div className="panel-tabs" role="tablist" aria-label="Project resources">
@@ -106,6 +133,14 @@ export function FileSidebar({
           aria-selected={activePanel === "connections"}
         >
           Profiles
+        </button>
+        <button
+          className="sidebar-toggle"
+          aria-label="Collapse sidebar"
+          title="Collapse sidebar"
+          onClick={toggleSidebar}
+        >
+          <PanelLeftClose size={15} />
         </button>
       </div>
       {activePanel !== "connections" ? (
