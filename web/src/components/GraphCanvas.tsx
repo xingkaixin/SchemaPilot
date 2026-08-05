@@ -20,9 +20,10 @@ import {
 } from "@xyflow/react";
 import type { ELK } from "elkjs/lib/elk-api";
 import { Check, Database, FileCode2, GitBranch, GripVertical, Layers3 } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useImportScript } from "../hooks";
 import { graphDropTargetId, graphResourceForPath } from "../lib/graphResources";
+import { loadNodeLayout, saveNodeLayout } from "../lib/layout";
 import { droppedResources, isOsFileDrag, type DroppedResource } from "../lib/osDrop";
 import { useMigratorStore } from "../store";
 import type {
@@ -178,16 +179,31 @@ function FlowSurface({
   const { fitView } = useReactFlow();
   const { isOver, setNodeRef } = useDroppable({ id: graphDropTargetId });
 
+  const [autoLayoutPending, setAutoLayoutPending] = useState(false);
+
   useEffect(() => {
     const next = graphToFlow(graph);
+    const stored = loadNodeLayout(graph.name);
     setNodes((current) =>
       next.nodes.map((node) => ({
         ...node,
-        position: current.find((existing) => existing.id === node.id)?.position ?? node.position,
+        position:
+          current.find((existing) => existing.id === node.id)?.position ??
+          stored[node.id] ??
+          node.position,
       })),
     );
     setEdges(next.edges);
   }, [graph, setEdges, setNodes]);
+
+  useEffect(() => {
+    if (nodes.length === 0) return;
+    const names = new Set(graph.nodes.map((node) => node.name));
+    const layout = Object.fromEntries(
+      nodes.filter((node) => names.has(node.id)).map((node) => [node.id, node.position]),
+    );
+    if (Object.keys(layout).length > 0) saveNodeLayout(graph.name, layout);
+  }, [graph, nodes]);
 
   const runLayout = useCallback(async () => {
     setLayouting(true);
@@ -198,10 +214,24 @@ function FlowSurface({
   }, [edges, fitView, graphDirection, nodes, setNodes]);
 
   useEffect(() => {
-    if (nodes.length > 0) void runLayout();
-    // A new graph needs one automatic layout; manual dragging remains local afterwards.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [graph.name, graphDirection, nodes.length]);
+    if (graph.nodes.length === 0) return;
+    const stored = loadNodeLayout(graph.name);
+    // Only a graph with no remembered layout gets arranged automatically.
+    if (graph.nodes.every((node) => !stored[node.name])) setAutoLayoutPending(true);
+  }, [graph]);
+
+  useEffect(() => {
+    if (!autoLayoutPending || nodes.length === 0) return;
+    setAutoLayoutPending(false);
+    void runLayout();
+  }, [autoLayoutPending, nodes.length, runLayout]);
+
+  const lastDirection = useRef(graphDirection);
+  useEffect(() => {
+    if (lastDirection.current === graphDirection) return;
+    lastDirection.current = graphDirection;
+    void runLayout();
+  }, [graphDirection, runLayout]);
 
   useEffect(() => {
     const onLayout = () => void runLayout();
