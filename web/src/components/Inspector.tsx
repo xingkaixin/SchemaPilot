@@ -313,10 +313,10 @@ function NodeInspector({
         <ActionButton
           tone="purple"
           disabled={Boolean(runBlocker) || startRun.isPending}
-          title={runBlocker || undefined}
-          onClick={() => startRun.mutate(false)}
+          title={runBlocker || "Run this node and its upstream dependencies"}
+          onClick={() => startRun.mutate({ force: false, nodes: [node.name] })}
         >
-          <Play size={14} /> Run graph
+          <Play size={14} /> Run node
         </ActionButton>
       </div>
       {editorPath ? (

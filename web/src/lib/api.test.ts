@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { importScript, saveDatabase } from "./api";
+import { importScript, saveDatabase, startRun } from "./api";
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -58,5 +58,25 @@ describe("workspace authoring API", () => {
         "If-Match": '"current"',
       }),
     );
+  });
+
+  it("sends the node selection when starting a scoped run", async () => {
+    const fetchMock = vi.fn().mockImplementation(() =>
+      Promise.resolve(
+        new Response(JSON.stringify({ id: "run-1", status: "pending" }), {
+          status: 202,
+          headers: { "Content-Type": "application/json" },
+        }),
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await startRun(false, ["order"]);
+    await startRun(false);
+
+    const [, scoped] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(JSON.parse(String(scoped.body))).toEqual({ force: false, nodes: ["order"] });
+    const [, full] = fetchMock.mock.calls[1] as [string, RequestInit];
+    expect(JSON.parse(String(full.body))).toEqual({ force: false });
   });
 });

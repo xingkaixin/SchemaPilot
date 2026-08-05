@@ -49,7 +49,7 @@ export function Header({
           tone="purple"
           disabled={Boolean(runBlocker) || startRun.isPending}
           title={runBlocker || undefined}
-          onClick={() => startRun.mutate(false)}
+          onClick={() => startRun.mutate({ force: false })}
         >
           <Play size={14} /> {startRun.isPending ? "Starting…" : "Run graph"}
         </ActionButton>

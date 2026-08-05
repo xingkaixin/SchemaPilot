@@ -42,7 +42,7 @@ export function RunLog({
           tone="purple"
           disabled={Boolean(runBlocker) || startRun.isPending}
           title={runBlocker || undefined}
-          onClick={() => startRun.mutate(false)}
+          onClick={() => startRun.mutate({ force: false })}
         >
           <Play size={13} /> {startRun.isPending ? "Starting…" : "Run"}
         </ActionButton>

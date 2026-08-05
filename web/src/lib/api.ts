@@ -132,9 +132,11 @@ export async function fetchRuns() {
   return runs.map(normalizeRunSummary);
 }
 
-export async function startRun(force: boolean) {
+export async function startRun(force: boolean, nodes?: string[]) {
+  const body: Record<string, unknown> = { force };
+  if (nodes?.length) body.nodes = nodes;
   return normalizeRunSummary(
-    await request<unknown>("/api/v1/runs", { method: "POST", body: JSON.stringify({ force }) }),
+    await request<unknown>("/api/v1/runs", { method: "POST", body: JSON.stringify(body) }),
   );
 }
 

@@ -143,7 +143,7 @@ export function useRunQuery(runId: string | null) {
 export function useStartRun() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: startRun,
+    mutationFn: ({ force, nodes }: { force: boolean; nodes?: string[] }) => startRun(force, nodes),
     onSuccess: (run) => {
       useMigratorStore.getState().setActiveRunId(run.id);
       queryClient.invalidateQueries({ queryKey: ["runs"] });
