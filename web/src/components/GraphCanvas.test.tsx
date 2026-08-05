@@ -51,13 +51,13 @@ describe("GraphCanvas SQL drop", () => {
 
     expect(useMigratorStore.getState().graphDraft?.nodes).toEqual([
       {
-        name: "users",
+        name: "users-001_create_users",
         database: "primary",
         dependsOn: [],
         scripts: [{ path: "users/001_create_users.sql" }],
       },
     ]);
-    expect(useMigratorStore.getState().selectedNodeId).toBe("users");
+    expect(useMigratorStore.getState().selectedNodeId).toBe("users-001_create_users");
   });
 
   it("creates one node with every SQL file dropped as a directory", () => {

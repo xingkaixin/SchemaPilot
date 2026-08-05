@@ -55,40 +55,58 @@ export function graphResourceForPath(files: ProjectFile[], path: string) {
 export function addGraphResource(graph: MigrationGraph, resource: GraphResource, database: string) {
   if (resource.scripts.length === 0) return null;
 
-  const nodeName = nodeNameForResource(resource);
-  const existingNode = graph.nodes.find((node) => node.name === nodeName);
-  if (existingNode) {
-    const existingScripts = new Set(existingNode.scripts.map((script) => script.path));
-    const addedScripts = resource.scripts
-      .filter((path) => !existingScripts.has(path))
-      .map((path) => ({ path }));
-    if (addedScripts.length === 0) return { graph, nodeName };
-    return {
-      graph: {
-        ...graph,
-        nodes: graph.nodes.map((node) =>
-          node.name === nodeName ? { ...node, scripts: [...node.scripts, ...addedScripts] } : node,
-        ),
-      },
-      nodeName,
-    };
+  const owners = new Map(
+    graph.nodes.flatMap((node) => node.scripts.map((script) => [script.path, node.name] as const)),
+  );
+  const newScripts = resource.scripts.filter((path) => !owners.has(path));
+  if (newScripts.length === 0) {
+    const owner = owners.get(resource.scripts[0] ?? "");
+    return owner ? { graph, nodeName: owner } : null;
   }
 
+  const nodeName = nodeNameForResource(resource);
+  if (resource.kind === "directory") {
+    const existingNode = graph.nodes.find((node) => node.name === nodeName);
+    if (existingNode) {
+      return {
+        graph: {
+          ...graph,
+          nodes: graph.nodes.map((node) =>
+            node.name === nodeName
+              ? { ...node, scripts: [...node.scripts, ...newScripts.map((path) => ({ path }))] }
+              : node,
+          ),
+        },
+        nodeName,
+      };
+    }
+  }
+
+  const uniqueName = uniqueNodeName(graph, nodeName);
   return {
     graph: {
       ...graph,
       nodes: [
         ...graph.nodes,
         {
-          name: nodeName,
+          name: uniqueName,
           database,
           dependsOn: [],
-          scripts: resource.scripts.map((path) => ({ path })),
+          scripts: newScripts.map((path) => ({ path })),
         },
       ],
     },
-    nodeName,
+    nodeName: uniqueName,
   };
+}
+
+function uniqueNodeName(graph: MigrationGraph, base: string) {
+  const taken = new Set(graph.nodes.map((node) => node.name));
+  if (!taken.has(base)) return base;
+  for (let suffix = 2; ; suffix += 1) {
+    const candidate = `${base}-${suffix}`;
+    if (!taken.has(candidate)) return candidate;
+  }
 }
 
 export function isGraphResource(value: unknown): value is GraphResource {
@@ -116,10 +134,13 @@ function normalizePath(path: string) {
 
 function nodeNameForResource(resource: GraphResource) {
   const segments = resource.path.split("/").filter(Boolean);
-  const raw =
-    resource.kind === "directory"
-      ? segments.at(-1)
-      : (segments.at(-2) ?? segments.at(-1)?.replace(/\.sql$/i, ""));
+  let raw = segments.at(-1);
+  if (resource.kind === "file") {
+    raw = raw?.replace(/\.sql$/i, "");
+    // A digit-prefixed migration file borrows its directory for a valid name.
+    const parent = segments.at(-2);
+    if (raw && parent && !/^[A-Za-z]/.test(raw)) raw = `${parent}-${raw}`;
+  }
   const normalized = (raw ?? "migration").replace(/[^A-Za-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "");
   if (!normalized) return "migration";
   return /^[A-Za-z]/.test(normalized) ? normalized : `migration-${normalized}`;

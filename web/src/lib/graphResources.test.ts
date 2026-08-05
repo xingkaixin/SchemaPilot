@@ -85,6 +85,62 @@ describe("graph resources", () => {
     });
   });
 
+  it("creates a separate node for each file dropped from the same directory", () => {
+    const first = addGraphResource(
+      emptyGraph,
+      graphResourceForPath(files, "sql/user/001_create_users.sql")!,
+      "primary",
+    )!;
+    const second = addGraphResource(
+      first.graph,
+      graphResourceForPath(files, "sql/user/002_add_email.sql")!,
+      "primary",
+    )!;
+
+    expect(second.graph.nodes.map((node) => node.name)).toEqual([
+      "user-001_create_users",
+      "user-002_add_email",
+    ]);
+    expect(second.graph.nodes[1]?.scripts).toEqual([{ path: "sql/user/002_add_email.sql" }]);
+  });
+
+  it("selects the owning node instead of duplicating an assigned script", () => {
+    const first = addGraphResource(
+      emptyGraph,
+      graphResourceForPath(files, "sql/user/001_create_users.sql")!,
+      "primary",
+    )!;
+    const again = addGraphResource(
+      first.graph,
+      graphResourceForPath(files, "sql/user/001_create_users.sql")!,
+      "primary",
+    )!;
+
+    expect(again.graph.nodes).toHaveLength(1);
+    expect(again.nodeName).toBe("user-001_create_users");
+  });
+
+  it("suffixes the node name when it is already taken", () => {
+    const graph: MigrationGraph = {
+      ...emptyGraph,
+      nodes: [
+        {
+          name: "user-002_add_email",
+          database: "primary",
+          dependsOn: [],
+          scripts: [{ path: "elsewhere.sql" }],
+        },
+      ],
+    };
+    const result = addGraphResource(
+      graph,
+      graphResourceForPath(files, "sql/user/002_add_email.sql")!,
+      "primary",
+    )!;
+
+    expect(result.nodeName).toBe("user-002_add_email-2");
+  });
+
   it("adds only missing scripts when the target node already exists", () => {
     const graph: MigrationGraph = {
       ...emptyGraph,
