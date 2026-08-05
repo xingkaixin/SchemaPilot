@@ -73,7 +73,8 @@ type databaseUpdateRequest struct {
 }
 
 type startRunRequest struct {
-	Force bool `json:"force"`
+	Force bool     `json:"force"`
+	Nodes []string `json:"nodes"`
 }
 
 type runAcceptedResponse struct {

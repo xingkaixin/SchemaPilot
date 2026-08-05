@@ -371,6 +371,61 @@ func TestRunStartListDetailAndResume(t *testing.T) {
 	}
 }
 
+func TestRunStartScopedToNodesAndScopedResume(t *testing.T) {
+	fixture := newHTTPFixture(t, "SELECT 1;", nil)
+	graph := `version: 1
+name: shop
+parallelism: 2
+on_error: halt
+nodes:
+  user:
+    database: primary
+    scripts: [user.sql]
+  order:
+    database: primary
+    scripts: [order.sql]
+  report:
+    database: primary
+    depends_on: [user, order]
+    scripts: [report.sql]
+`
+	if err := os.WriteFile(filepath.Join(fixture.root, "migration.yaml"), []byte(graph), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"order.sql", "report.sql"} {
+		if err := os.WriteFile(filepath.Join(fixture.root, name), []byte("SELECT 1;"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	unknown := fixture.request(http.MethodPost, "/api/v1/runs", `{"nodes":["missing"]}`, nil)
+	if unknown.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("unknown node status = %d, body=%s", unknown.Code, unknown.Body.String())
+	}
+
+	fixture.target.SetScriptError("order.sql", errors.New("script failed"))
+	start := fixture.request(http.MethodPost, "/api/v1/runs", `{"nodes":["order"]}`, nil)
+	if start.Code != http.StatusAccepted {
+		t.Fatalf("scoped start status = %d, body=%s", start.Code, start.Body.String())
+	}
+	var accepted runAcceptedResponse
+	decodeResponse(t, start, &accepted)
+	failed := fixture.waitForRun(accepted.ID, migration.RunStatusFailed)
+	if len(failed.Nodes) != 1 || failed.Nodes[0].Name != "order" {
+		t.Fatalf("scoped run nodes = %+v", failed.Nodes)
+	}
+
+	fixture.target.SetScriptError("order.sql", nil)
+	resume := fixture.request(http.MethodPost, "/api/v1/runs/"+string(accepted.ID)+"/resume", `{}`, nil)
+	if resume.Code != http.StatusAccepted {
+		t.Fatalf("scoped resume status = %d, body=%s", resume.Code, resume.Body.String())
+	}
+	resumed := fixture.waitForRun(accepted.ID, migration.RunStatusSucceeded)
+	if resumed.Run.Attempt != 2 || len(resumed.Nodes) != 1 {
+		t.Fatalf("scoped resume snapshot = %+v", resumed)
+	}
+}
+
 func TestDatabaseTestEndpointUsesFakeConnector(t *testing.T) {
 	fixture := newHTTPFixture(t, "SELECT 1;", nil)
 	response := fixture.request(http.MethodPost, "/api/v1/databases/primary/test", nil, nil)

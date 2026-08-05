@@ -310,7 +310,12 @@ func (server *Server) startRun(response http.ResponseWriter, request *http.Reque
 		writeError(response, http.StatusUnprocessableEntity, err.Error())
 		return
 	}
-	handle, err := server.engine.Start(server.context, execution.StartRequest{Project: loaded, Force: start.Force})
+	scoped, err := project.Scoped(loaded, start.Nodes)
+	if err != nil {
+		writeError(response, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+	handle, err := server.engine.Start(server.context, execution.StartRequest{Project: scoped, Force: start.Force})
 	if err != nil {
 		writeError(response, http.StatusConflict, err.Error())
 		return
@@ -339,7 +344,22 @@ func (server *Server) resumeRun(response http.ResponseWriter, request *http.Requ
 		return
 	}
 	runID := execution.RunID(request.PathValue("id"))
-	handle, err := server.engine.Resume(server.context, execution.ResumeRequest{RunID: runID, Project: loaded, Force: resume.Force})
+	snapshot, err := server.engine.Snapshot(request.Context(), runID)
+	if err != nil {
+		writeRunError(response, err)
+		return
+	}
+	// A scoped run resumes against the same subgraph it was created with.
+	names := make([]string, 0, len(snapshot.Nodes))
+	for _, node := range snapshot.Nodes {
+		names = append(names, node.Name)
+	}
+	scoped, err := project.Scoped(loaded, names)
+	if err != nil {
+		writeError(response, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+	handle, err := server.engine.Resume(server.context, execution.ResumeRequest{RunID: runID, Project: scoped, Force: resume.Force})
 	if err != nil {
 		writeRunError(response, err)
 		return

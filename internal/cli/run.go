@@ -41,6 +41,7 @@ func newValidateCommand(stdout io.Writer) *cobra.Command {
 func newRunCommand(stdout io.Writer) *cobra.Command {
 	var options projectOptions
 	var force bool
+	var nodes []string
 	command := &cobra.Command{
 		Use:   "run [migration.yaml]",
 		Short: "Start a migration run",
@@ -55,8 +56,12 @@ func newRunCommand(stdout io.Writer) *cobra.Command {
 				return err
 			}
 			defer runtime.store.Close()
+			scoped, err := project.Scoped(runtime.project, nodes)
+			if err != nil {
+				return err
+			}
 			printer := newEventPrinter(stdout)
-			handle, err := runtime.engine.Start(command.Context(), execution.StartRequest{Project: runtime.project, Force: force, Notify: printer.notify})
+			handle, err := runtime.engine.Start(command.Context(), execution.StartRequest{Project: scoped, Force: force, Notify: printer.notify})
 			if err != nil {
 				return err
 			}
@@ -66,6 +71,7 @@ func newRunCommand(stdout io.Writer) *cobra.Command {
 	}
 	options.bind(command, true)
 	command.Flags().BoolVar(&force, "force", false, "execute scripts whose applied checksum changed")
+	command.Flags().StringArrayVar(&nodes, "node", nil, "run only this node and its dependencies (repeatable)")
 	return command
 }
 
@@ -93,8 +99,17 @@ func newResumeCommand(stdout io.Writer) *cobra.Command {
 					return err
 				}
 			}
+			snapshot, err := runtime.engine.Snapshot(command.Context(), runID)
+			if err != nil {
+				return err
+			}
+			// A scoped run resumes against the same subgraph it was created with.
+			scoped, err := project.Scoped(runtime.project, runNodeNames(snapshot))
+			if err != nil {
+				return err
+			}
 			printer := newEventPrinter(stdout)
-			handle, err := runtime.engine.Resume(command.Context(), execution.ResumeRequest{RunID: runID, Project: runtime.project, Force: force, Notify: printer.notify})
+			handle, err := runtime.engine.Resume(command.Context(), execution.ResumeRequest{RunID: runID, Project: scoped, Force: force, Notify: printer.notify})
 			if err != nil {
 				return err
 			}
@@ -105,6 +120,14 @@ func newResumeCommand(stdout io.Writer) *cobra.Command {
 	options.bind(command, true)
 	command.Flags().BoolVar(&force, "force", false, "execute scripts whose applied checksum changed")
 	return command
+}
+
+func runNodeNames(snapshot execution.RunSnapshot) []string {
+	names := make([]string, 0, len(snapshot.Nodes))
+	for _, node := range snapshot.Nodes {
+		names = append(names, node.Name)
+	}
+	return names
 }
 
 func waitAndReport(ctx context.Context, stdout io.Writer, engine *execution.Engine, handle execution.Handle) error {

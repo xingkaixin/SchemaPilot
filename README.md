@@ -115,6 +115,7 @@ schemapilot serve [migration.yaml]     启动 Web 控制台和 HTTP API
 
 ```bash
 schemapilot run migration.yaml --databases databases.toml --state .schemapilot/runs.db
+schemapilot run --node report            # 只执行 report 及其上游依赖
 schemapilot resume --force
 schemapilot status --json
 schemapilot runs --limit 50 --json
