@@ -1,5 +1,6 @@
-import { fireEvent, render, screen } from "@testing-library/react";
-import { beforeEach, describe, expect, it } from "vitest";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useMigratorStore } from "../store";
 import type { MigrationGraph } from "../types";
 import { GraphCanvas } from "./GraphCanvas";
@@ -12,6 +13,18 @@ const emptyGraph: MigrationGraph = {
   nodes: [],
 };
 
+function renderCanvas(files: Array<{ path: string; kind: "file" }>) {
+  render(
+    <QueryClientProvider client={new QueryClient()}>
+      <GraphCanvas
+        graph={emptyGraph}
+        databases={[{ name: "primary", driver: "postgres", dsn: "postgres://primary" }]}
+        files={files}
+      />
+    </QueryClientProvider>,
+  );
+}
+
 describe("GraphCanvas SQL drop", () => {
   beforeEach(() => {
     useMigratorStore.setState({
@@ -21,17 +34,16 @@ describe("GraphCanvas SQL drop", () => {
     });
   });
 
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it("creates the first node from an imported SQL file", () => {
-    render(
-      <GraphCanvas
-        graph={emptyGraph}
-        databases={[{ name: "primary", driver: "postgres", dsn: "postgres://primary" }]}
-        files={[{ path: "users/001_create_users.sql", kind: "file" }]}
-      />,
-    );
+    renderCanvas([{ path: "users/001_create_users.sql", kind: "file" }]);
 
     fireEvent.drop(screen.getByTestId("graph-canvas"), {
       dataTransfer: {
+        types: [],
         getData: (type: string) =>
           type === "text/migrator-resource" ? "users/001_create_users.sql" : "",
       },
@@ -49,20 +61,14 @@ describe("GraphCanvas SQL drop", () => {
   });
 
   it("creates one node with every SQL file dropped as a directory", () => {
-    const files = [
-      { path: "users/002_add_email.sql", kind: "file" as const },
-      { path: "users/001_create_users.sql", kind: "file" as const },
-    ];
-    render(
-      <GraphCanvas
-        graph={emptyGraph}
-        databases={[{ name: "primary", driver: "postgres", dsn: "postgres://primary" }]}
-        files={files}
-      />,
-    );
+    renderCanvas([
+      { path: "users/002_add_email.sql", kind: "file" },
+      { path: "users/001_create_users.sql", kind: "file" },
+    ]);
 
     fireEvent.drop(screen.getByTestId("graph-canvas"), {
       dataTransfer: {
+        types: [],
         getData: (type: string) => (type === "text/plain" ? "users/" : ""),
       },
     });
@@ -75,5 +81,45 @@ describe("GraphCanvas SQL drop", () => {
         scripts: [{ path: "users/001_create_users.sql" }, { path: "users/002_add_email.sql" }],
       },
     ]);
+  });
+
+  it("imports an OS file dropped directly on the canvas and adds it as a node", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ path: "orders.sql", content: "select 1;" }), {
+          status: 201,
+        }),
+      ),
+    );
+    renderCanvas([]);
+
+    fireEvent.drop(screen.getByTestId("graph-canvas"), {
+      dataTransfer: {
+        types: ["Files"],
+        items: [],
+        files: [
+          Object.assign(new File(["select 1;"], "orders.sql"), {
+            text: () => Promise.resolve("select 1;"),
+          }),
+        ],
+        getData: () => "",
+      },
+    });
+
+    await waitFor(() => {
+      expect(useMigratorStore.getState().graphDraft?.nodes).toEqual([
+        {
+          name: "orders",
+          database: "primary",
+          dependsOn: [],
+          scripts: [{ path: "orders.sql" }],
+        },
+      ]);
+    });
+    expect(fetch).toHaveBeenCalledWith(
+      "/api/v1/scripts",
+      expect.objectContaining({ method: "POST" }),
+    );
   });
 });

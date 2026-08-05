@@ -4,6 +4,7 @@ import { FileCode2, Folder, GripVertical, Upload } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useImportScript } from "../hooks";
 import { graphResources, type GraphResource } from "../lib/graphResources";
+import { droppedResources, isOsFileDrag, type DroppedFile } from "../lib/osDrop";
 import { useMigratorStore } from "../store";
 import type { DatabaseProfile, ProjectFile } from "../types";
 import { DatabaseProfilesPanel } from "./DatabaseProfilesPanel";
@@ -56,13 +57,12 @@ export function FileSidebar({
   const filteredResources = resources.filter((resource) =>
     resource.path.toLowerCase().includes(search.toLowerCase()),
   );
-  const importFiles = async (incoming: File[]) => {
+  const importFiles = async (incoming: DroppedFile[]) => {
     const results: ImportResult["items"] = [];
     setIsImporting(true);
     setImportResult(null);
-    for (const file of incoming) {
-      const path = filePath(file);
-      if (!path.endsWith(".sql")) {
+    for (const { path, file } of incoming) {
+      if (!path.toLowerCase().endsWith(".sql")) {
         results.push({ path, error: "Only .sql files can be imported." });
         continue;
       }
@@ -82,7 +82,10 @@ export function FileSidebar({
   const handleFileDrop = (event: React.DragEvent<HTMLDivElement>) => {
     event.preventDefault();
     setIsFileDragOver(false);
-    if (event.dataTransfer.files.length > 0) void importFiles([...event.dataTransfer.files]);
+    if (!isOsFileDrag(event.dataTransfer)) return;
+    void droppedResources(event.dataTransfer).then((resources) =>
+      importFiles(resources.flatMap((resource) => resource.files)),
+    );
   };
 
   return (
@@ -137,7 +140,11 @@ export function FileSidebar({
               accept=".sql,text/plain"
               multiple
               onChange={(event) => {
-                if (event.target.files) void importFiles([...event.target.files]);
+                if (event.target.files) {
+                  void importFiles(
+                    [...event.target.files].map((file) => ({ path: filePath(file), file })),
+                  );
+                }
                 event.target.value = "";
               }}
             />

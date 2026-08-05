@@ -21,7 +21,9 @@ import {
 import type { ELK } from "elkjs/lib/elk-api";
 import { Check, Database, FileCode2, GitBranch, GripVertical, Layers3 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
+import { useImportScript } from "../hooks";
 import { graphDropTargetId, graphResourceForPath } from "../lib/graphResources";
+import { droppedResources, isOsFileDrag, type DroppedResource } from "../lib/osDrop";
 import { useMigratorStore } from "../store";
 import type {
   DatabaseProfile,
@@ -234,20 +236,51 @@ function FlowSurface({
     [removeNode],
   );
 
+  const importScript = useImportScript();
+  const importDroppedResources = useCallback(
+    async (dropped: DroppedResource[]) => {
+      const known = new Set(files.filter((file) => file.kind !== "directory").map((f) => f.path));
+      for (const resource of dropped) {
+        const scripts: string[] = [];
+        for (const { path, file } of resource.files) {
+          if (!path.toLowerCase().endsWith(".sql")) continue;
+          try {
+            await importScript.mutateAsync({ path, content: await file.text() });
+            scripts.push(path);
+          } catch {
+            if (known.has(path)) scripts.push(path);
+          }
+        }
+        if (scripts.length > 0) {
+          addResource(
+            { kind: resource.kind, path: resource.path, scripts },
+            databases[0]?.name ?? "",
+          );
+        }
+      }
+    },
+    [addResource, databases, files, importScript],
+  );
+
   const handleDrop = useCallback(
     (event: React.DragEvent<HTMLDivElement>) => {
       event.preventDefault();
+      if (isOsFileDrag(event.dataTransfer)) {
+        void droppedResources(event.dataTransfer).then(importDroppedResources);
+        return;
+      }
       const path =
         event.dataTransfer.getData("text/migrator-resource") ||
         event.dataTransfer.getData("text/plain");
       const resource = graphResourceForPath(files, path);
       if (resource) addResource(resource, databases[0]?.name ?? "");
     },
-    [addResource, databases, files],
+    [addResource, databases, files, importDroppedResources],
   );
 
   const handleDragOver = useCallback((event: React.DragEvent<HTMLDivElement>) => {
     if (
+      event.dataTransfer.types.includes("Files") ||
       event.dataTransfer.types.includes("text/migrator-resource") ||
       event.dataTransfer.types.includes("text/plain")
     ) {
