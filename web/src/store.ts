@@ -25,6 +25,7 @@ interface MigratorStore {
   commitGraph: (graph: GraphDraft, fingerprint?: string) => void;
   setDatabaseFingerprint: (fingerprint?: string) => void;
   updateNode: (nodeName: string, update: Partial<MigrationNode>) => void;
+  removeNode: (nodeName: string) => void;
   updateGraph: (update: Partial<GraphDraft>) => void;
   moveScript: (nodeName: string, fromIndex: number, toIndex: number) => void;
   addResource: (resource: GraphResource, database: string) => void;
@@ -98,6 +99,22 @@ export const useMigratorStore = create<MigratorStore>((set) => ({
         graphDraft,
         selectedNodeId:
           renamedTo && state.selectedNodeId === nodeName ? renamedTo : state.selectedNodeId,
+      };
+    }),
+  removeNode: (nodeName) =>
+    set((state) => {
+      if (!state.graphDraft) return state;
+      if (!state.graphDraft.nodes.some((node) => node.name === nodeName)) return state;
+      const graphDraft = cloneGraph(state.graphDraft);
+      graphDraft.nodes = graphDraft.nodes.filter((node) => node.name !== nodeName);
+      graphDraft.nodes.forEach((node) => {
+        node.dependsOn = node.dependsOn.filter((dependency) => dependency !== nodeName);
+      });
+      const selectionRemoved = state.selectedNodeId === nodeName;
+      return {
+        graphDraft,
+        selectedNodeId: selectionRemoved ? null : state.selectedNodeId,
+        selectedScriptPath: selectionRemoved ? null : state.selectedScriptPath,
       };
     }),
   updateGraph: (update) =>

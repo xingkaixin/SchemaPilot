@@ -167,6 +167,7 @@ function FlowSurface({
   const selectNode = useMigratorStore((state) => state.selectNode);
   const addDependency = useMigratorStore((state) => state.addDependency);
   const removeDependency = useMigratorStore((state) => state.removeDependency);
+  const removeNode = useMigratorStore((state) => state.removeNode);
   const addResource = useMigratorStore((state) => state.addResource);
   const graphDirection = useMigratorStore((state) => state.graphDirection);
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
@@ -226,6 +227,13 @@ function FlowSurface({
     [removeDependency],
   );
 
+  const handleNodesDelete = useCallback(
+    (deleted: Node[]) => {
+      deleted.forEach((node) => removeNode(node.id));
+    },
+    [removeNode],
+  );
+
   const handleDrop = useCallback(
     (event: React.DragEvent<HTMLDivElement>) => {
       event.preventDefault();
@@ -272,6 +280,7 @@ function FlowSurface({
         onEdgesChange={onEdgesChange}
         onConnect={handleConnect}
         onEdgesDelete={handleEdgesDelete}
+        onNodesDelete={handleNodesDelete}
         onNodeClick={(_, node) => selectNode(node.id)}
         onPaneClick={() => selectNode(null)}
         fitView

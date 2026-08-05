@@ -165,6 +165,7 @@ function NodeInspector({
   problems: string[];
 }) {
   const updateNode = useMigratorStore((state) => state.updateNode);
+  const removeNode = useMigratorStore((state) => state.removeNode);
   const moveScript = useMigratorStore((state) => state.moveScript);
   const removeScript = useMigratorStore((state) => state.removeScript);
   const selectScript = useMigratorStore((state) => state.selectScript);
@@ -297,6 +298,9 @@ function NodeInspector({
                 : "Operation failed"}
           </span>
         ) : null}
+        <ActionButton onClick={() => removeNode(node.name)}>
+          <Trash2 size={14} /> Delete node
+        </ActionButton>
         <ActionButton
           disabled={!isDirty || saveGraph.isPending}
           onClick={() => {

@@ -48,6 +48,21 @@ describe("migration draft store", () => {
     expect(useMigratorStore.getState().graphDraft?.nodes[0]?.scripts).toHaveLength(1);
   });
 
+  it("removes a node, its dependency references, and its selection", () => {
+    useMigratorStore.getState().selectNode("users");
+    useMigratorStore.getState().removeNode("users");
+    const draft = useMigratorStore.getState().graphDraft;
+    expect(draft?.nodes.map((node) => node.name)).toEqual(["reports"]);
+    expect(draft?.nodes[0]?.dependsOn).toEqual([]);
+    expect(useMigratorStore.getState().selectedNodeId).toBeNull();
+  });
+
+  it("keeps an unrelated selection when removing another node", () => {
+    useMigratorStore.getState().selectNode("reports");
+    useMigratorStore.getState().removeNode("users");
+    expect(useMigratorStore.getState().selectedNodeId).toBe("reports");
+  });
+
   it("renames a node and updates dependency references", () => {
     useMigratorStore.getState().selectNode("users");
     useMigratorStore.getState().updateNode("users", { name: "accounts" });
