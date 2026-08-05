@@ -91,7 +91,7 @@ export function App() {
           </button>
         ))}
       </nav>
-      <GraphResourceDnd database={databaseList[0]?.name ?? ""}>
+      <GraphResourceDnd>
         <div className="workspace-grid">
           <div
             className={`workspace-sidebar ${activePanel === "files" || activePanel === "connections" ? "workspace-panel--active" : ""}`}

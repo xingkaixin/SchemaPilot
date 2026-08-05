@@ -1,4 +1,4 @@
-import { useDroppable } from "@dnd-kit/core";
+import { useDndMonitor, useDroppable } from "@dnd-kit/core";
 import {
   Background,
   BaseEdge,
@@ -22,7 +22,12 @@ import type { ELK } from "elkjs/lib/elk-api";
 import { Check, Database, FileCode2, GitBranch, GripVertical, Layers3 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useImportScript } from "../hooks";
-import { graphDropTargetId, graphResourceForPath } from "../lib/graphResources";
+import {
+  graphDropTargetId,
+  graphResourceForPath,
+  isGraphResource,
+  type GraphResource,
+} from "../lib/graphResources";
 import { loadNodeLayout, saveNodeLayout } from "../lib/layout";
 import { droppedResources, isOsFileDrag, type DroppedResource } from "../lib/osDrop";
 import { useMigratorStore } from "../store";
@@ -176,7 +181,7 @@ function FlowSurface({
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const [layouting, setLayouting] = useState(false);
-  const { fitView } = useReactFlow();
+  const { fitView, screenToFlowPosition } = useReactFlow();
   const { isOver, setNodeRef } = useDroppable({ id: graphDropTargetId });
 
   const [autoLayoutPending, setAutoLayoutPending] = useState(false);
@@ -266,10 +271,38 @@ function FlowSurface({
     [removeNode],
   );
 
+  const placeResource = useCallback(
+    (resource: GraphResource, screen: { x: number; y: number }) => {
+      const before = new Set(
+        useMigratorStore.getState().graphDraft?.nodes.map((node) => node.name) ?? [],
+      );
+      addResource(resource, databases[0]?.name ?? "");
+      const nodeName = useMigratorStore.getState().selectedNodeId;
+      if (!nodeName || before.has(nodeName)) return;
+      const position = screenToFlowPosition(screen);
+      if (!Number.isFinite(position.x) || !Number.isFinite(position.y)) return;
+      saveNodeLayout(graph.name, { ...loadNodeLayout(graph.name), [nodeName]: position });
+    },
+    [addResource, databases, graph.name, screenToFlowPosition],
+  );
+
+  useDndMonitor({
+    onDragEnd: (event) => {
+      const resource = event.active.data.current?.resource;
+      if (event.over?.id !== graphDropTargetId || !isGraphResource(resource)) return;
+      const activator = event.activatorEvent as PointerEvent;
+      placeResource(resource, {
+        x: activator.clientX + event.delta.x,
+        y: activator.clientY + event.delta.y,
+      });
+    },
+  });
+
   const importScript = useImportScript();
   const importDroppedResources = useCallback(
-    async (dropped: DroppedResource[]) => {
+    async (dropped: DroppedResource[], screen: { x: number; y: number }) => {
       const known = new Set(files.filter((file) => file.kind !== "directory").map((f) => f.path));
+      let placed = 0;
       for (const resource of dropped) {
         const scripts: string[] = [];
         for (const { path, file } of resource.files) {
@@ -282,30 +315,34 @@ function FlowSurface({
           }
         }
         if (scripts.length > 0) {
-          addResource(
+          const offset = 36 * placed++;
+          placeResource(
             { kind: resource.kind, path: resource.path, scripts },
-            databases[0]?.name ?? "",
+            { x: screen.x + offset, y: screen.y + offset },
           );
         }
       }
     },
-    [addResource, databases, files, importScript],
+    [files, importScript, placeResource],
   );
 
   const handleDrop = useCallback(
     (event: React.DragEvent<HTMLDivElement>) => {
       event.preventDefault();
+      const screen = { x: event.clientX, y: event.clientY };
       if (isOsFileDrag(event.dataTransfer)) {
-        void droppedResources(event.dataTransfer).then(importDroppedResources);
+        void droppedResources(event.dataTransfer).then((dropped) =>
+          importDroppedResources(dropped, screen),
+        );
         return;
       }
       const path =
         event.dataTransfer.getData("text/migrator-resource") ||
         event.dataTransfer.getData("text/plain");
       const resource = graphResourceForPath(files, path);
-      if (resource) addResource(resource, databases[0]?.name ?? "");
+      if (resource) placeResource(resource, screen);
     },
-    [addResource, databases, files, importDroppedResources],
+    [files, importDroppedResources, placeResource],
   );
 
   const handleDragOver = useCallback((event: React.DragEvent<HTMLDivElement>) => {

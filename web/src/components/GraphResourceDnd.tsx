@@ -8,27 +8,20 @@ import {
   useSensor,
   useSensors,
   type CollisionDetection,
-  type DragEndEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
 import { FileCode2, Folder } from "lucide-react";
 import { useState, type ReactNode } from "react";
-import { graphDropTargetId, isGraphResource, type GraphResource } from "../lib/graphResources";
-import { useMigratorStore } from "../store";
+import { isGraphResource, type GraphResource } from "../lib/graphResources";
 
 const graphCollisionDetection: CollisionDetection = (arguments_) => {
   const pointerCollisions = pointerWithin(arguments_);
   return pointerCollisions.length > 0 ? pointerCollisions : rectIntersection(arguments_);
 };
 
-export function GraphResourceDnd({
-  database,
-  children,
-}: {
-  database: string;
-  children: ReactNode;
-}) {
-  const addResource = useMigratorStore((state) => state.addResource);
+// Dropping onto the canvas is handled by FlowSurface via useDndMonitor, which
+// can translate the release point into flow coordinates.
+export function GraphResourceDnd({ children }: { children: ReactNode }) {
   const [activeResource, setActiveResource] = useState<GraphResource | null>(null);
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
@@ -39,13 +32,6 @@ export function GraphResourceDnd({
     const resource = event.active.data.current?.resource;
     setActiveResource(isGraphResource(resource) ? resource : null);
   };
-  const handleDragEnd = (event: DragEndEvent) => {
-    const resource = event.active.data.current?.resource;
-    if (event.over?.id === graphDropTargetId && isGraphResource(resource)) {
-      addResource(resource, database);
-    }
-    setActiveResource(null);
-  };
 
   return (
     <DndContext
@@ -53,7 +39,7 @@ export function GraphResourceDnd({
       collisionDetection={graphCollisionDetection}
       onDragStart={handleDragStart}
       onDragCancel={() => setActiveResource(null)}
-      onDragEnd={handleDragEnd}
+      onDragEnd={() => setActiveResource(null)}
     >
       {children}
       <DragOverlay dropAnimation={null}>

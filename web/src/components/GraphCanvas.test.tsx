@@ -1,6 +1,8 @@
+import { DndContext } from "@dnd-kit/core";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { createEvent, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { loadNodeLayout } from "../lib/layout";
 import { useMigratorStore } from "../store";
 import type { MigrationGraph } from "../types";
 import { GraphCanvas } from "./GraphCanvas";
@@ -16,17 +18,20 @@ const emptyGraph: MigrationGraph = {
 function renderCanvas(files: Array<{ path: string; kind: "file" }>) {
   render(
     <QueryClientProvider client={new QueryClient()}>
-      <GraphCanvas
-        graph={emptyGraph}
-        databases={[{ name: "primary", driver: "postgres", dsn: "postgres://primary" }]}
-        files={files}
-      />
+      <DndContext>
+        <GraphCanvas
+          graph={emptyGraph}
+          databases={[{ name: "primary", driver: "postgres", dsn: "postgres://primary" }]}
+          files={files}
+        />
+      </DndContext>
     </QueryClientProvider>,
   );
 }
 
 describe("GraphCanvas SQL drop", () => {
   beforeEach(() => {
+    window.localStorage.clear();
     useMigratorStore.setState({
       graphDraft: structuredClone(emptyGraph),
       graphBaseline: structuredClone(emptyGraph),
@@ -41,13 +46,19 @@ describe("GraphCanvas SQL drop", () => {
   it("creates the first node from an imported SQL file", () => {
     renderCanvas([{ path: "users/001_create_users.sql", kind: "file" }]);
 
-    fireEvent.drop(screen.getByTestId("graph-canvas"), {
+    const canvas = screen.getByTestId("graph-canvas");
+    const dropEvent = createEvent.drop(canvas);
+    // jsdom has no DragEvent, so coordinates must be assigned by hand.
+    Object.assign(dropEvent, {
+      clientX: 320,
+      clientY: 180,
       dataTransfer: {
         types: [],
         getData: (type: string) =>
           type === "text/migrator-resource" ? "users/001_create_users.sql" : "",
       },
     });
+    fireEvent(canvas, dropEvent);
 
     expect(useMigratorStore.getState().graphDraft?.nodes).toEqual([
       {
@@ -58,6 +69,7 @@ describe("GraphCanvas SQL drop", () => {
       },
     ]);
     expect(useMigratorStore.getState().selectedNodeId).toBe("users-001_create_users");
+    expect(loadNodeLayout("workspace")["users-001_create_users"]).toEqual({ x: 320, y: 180 });
   });
 
   it("creates one node with every SQL file dropped as a directory", () => {
