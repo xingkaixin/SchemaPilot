@@ -279,7 +279,7 @@ pre,
   min-height: 0;
 }
 .workspace-grid--sidebar-collapsed {
-  grid-template-columns: 42px minmax(520px, 1fr) 340px;
+  grid-template-columns: 0 minmax(520px, 1fr) 340px;
 }
 .workspace-sidebar,
 .workspace-center,
@@ -316,20 +316,12 @@ pre,
   justify-content: center;
   flex: 0 0 40px;
   border: 0;
-  border-left: 2px solid var(--ink);
+  border-left: 1px solid var(--line);
   background: var(--panel);
   cursor: pointer;
 }
 .sidebar-toggle:hover {
   background: var(--soft-bone);
-}
-.sidebar--collapsed {
-  align-items: stretch;
-}
-.sidebar--collapsed .sidebar-toggle {
-  flex: 0 0 40px;
-  border-left: 0;
-  border-bottom: 2px solid var(--ink);
 }
 .panel-tab {
   flex: 1;

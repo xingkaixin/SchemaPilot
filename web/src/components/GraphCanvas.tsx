@@ -21,7 +21,15 @@ import {
   getSmoothStepPath,
 } from "@xyflow/react";
 import type { ELK } from "elkjs/lib/elk-api";
-import { Check, Database, FileCode2, GitBranch, GripVertical, Layers3 } from "lucide-react";
+import {
+  Check,
+  Database,
+  FileCode2,
+  GitBranch,
+  GripVertical,
+  Layers3,
+  PanelLeftOpen,
+} from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useImportScript } from "../hooks";
 import {
@@ -427,9 +435,16 @@ export function GraphCanvas({
   const setGraphDirection = useMigratorStore((state) => state.setGraphDirection);
   const toggleConsole = useMigratorStore((state) => state.toggleConsole);
   const consoleOpen = useMigratorStore((state) => state.consoleOpen);
+  const sidebarOpen = useMigratorStore((state) => state.sidebarOpen);
+  const toggleSidebar = useMigratorStore((state) => state.toggleSidebar);
   return (
     <section id="migration-graph" className="graph-panel" aria-label="Migration graph">
       <div className="graph-toolbar">
+        {!sidebarOpen ? (
+          <ActionButton onClick={toggleSidebar} aria-label="Expand sidebar" title="Expand sidebar">
+            <PanelLeftOpen size={14} />
+          </ActionButton>
+        ) : null}
         <div className="segmented-control" role="group" aria-label="Graph view">
           <button
             className={graphDirection === "right" ? "segment segment--active" : "segment"}

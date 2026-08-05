@@ -1,13 +1,6 @@
 import { useDraggable } from "@dnd-kit/core";
 import { FileTree, useFileTree } from "@pierre/trees/react";
-import {
-  FileCode2,
-  Folder,
-  GripVertical,
-  PanelLeftClose,
-  PanelLeftOpen,
-  Upload,
-} from "lucide-react";
+import { FileCode2, Folder, GripVertical, PanelLeftClose, Upload } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useImportScript } from "../hooks";
 import { graphResources, type GraphResource } from "../lib/graphResources";
@@ -97,23 +90,8 @@ export function FileSidebar({
     );
   };
 
-  if (!sidebarOpen) {
-    return (
-      <aside
-        className="sidebar left-sidebar sidebar--collapsed"
-        aria-label="Project files and database profiles"
-      >
-        <button
-          className="sidebar-toggle"
-          aria-label="Expand sidebar"
-          title="Expand sidebar"
-          onClick={toggleSidebar}
-        >
-          <PanelLeftOpen size={15} />
-        </button>
-      </aside>
-    );
-  }
+  // Collapsed: the expand control lives in the graph toolbar instead.
+  if (!sidebarOpen) return null;
 
   return (
     <aside className="sidebar left-sidebar" aria-label="Project files and database profiles">
