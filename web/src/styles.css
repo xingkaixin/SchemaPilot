@@ -827,7 +827,8 @@ pre,
   stroke: var(--purple);
 }
 .migration-node {
-  min-width: 245px;
+  min-width: 180px;
+  max-width: 200px;
   border: 2px solid var(--ink);
   background: var(--panel);
   box-shadow: 4px 4px 0 var(--ink);
@@ -846,8 +847,8 @@ pre,
 .migration-node-header {
   display: flex;
   align-items: center;
-  gap: 7px;
-  padding: 8px 9px;
+  gap: 6px;
+  padding: 6px 8px;
   border-bottom: 2px solid var(--ink);
   background: var(--soft-bone);
 }
@@ -859,7 +860,7 @@ pre,
 }
 .migration-node-header code {
   overflow: hidden;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 700;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -891,7 +892,7 @@ pre,
 }
 .migration-node-database {
   gap: 6px;
-  padding: 6px 9px;
+  padding: 4px 8px;
   border-bottom: 2px solid var(--line);
   color: #3d3a35;
   font-size: 10px;
@@ -902,8 +903,8 @@ pre,
 .migration-node-script {
   gap: 6px;
   min-width: 0;
-  min-height: 19px;
-  padding: 2px 9px;
+  min-height: 17px;
+  padding: 1px 8px;
 }
 .migration-node-script code {
   overflow: hidden;
@@ -935,7 +936,7 @@ pre,
 }
 .migration-node-footer {
   gap: 5px;
-  padding: 5px 9px;
+  padding: 4px 8px;
   border-top: 2px solid var(--line);
   color: var(--muted);
   font-family: "Space Mono", monospace;
@@ -944,6 +945,14 @@ pre,
 .node-empty {
   padding: 6px 9px;
   color: var(--muted);
+  font-size: 10px;
+}
+.zoom-indicator {
+  padding: 3px 8px;
+  border: 2px solid var(--ink);
+  background: var(--panel);
+  color: #3d3a35;
+  font-family: "Space Mono", monospace;
   font-size: 10px;
 }
 .status-mark {

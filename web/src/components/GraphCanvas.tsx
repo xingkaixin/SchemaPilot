@@ -4,6 +4,7 @@ import {
   BaseEdge,
   Controls,
   MiniMap,
+  Panel,
   ReactFlow,
   ReactFlowProvider,
   Handle,
@@ -11,6 +12,7 @@ import {
   useEdgesState,
   useNodesState,
   useReactFlow,
+  useViewport,
   type Connection,
   type Edge,
   type Node,
@@ -153,7 +155,7 @@ async function layoutNodes(nodes: Node[], edges: Edge[], direction: "RIGHT" | "D
       "elk.spacing.nodeNode": "44",
       "elk.layered.spacing.nodeNodeBetweenLayers": "110",
     },
-    children: nodes.map((node) => ({ id: node.id, width: 250, height: 180 })),
+    children: nodes.map((node) => ({ id: node.id, width: 200, height: 150 })),
     edges: edges.map((edge) => ({ id: edge.id, sources: [edge.source], targets: [edge.target] })),
   });
   const positions = new Map(
@@ -392,11 +394,23 @@ function FlowSurface({
         <Background color="#E7E2D6" gap={18} size={1.4} />
         <Controls showInteractive={false} />
         <MiniMap
+          pannable
+          zoomable
           nodeColor={(node) => (node.id === selectedNodeId ? "#9B5CFF" : "#1A1A1A")}
           maskColor="rgba(255,252,242,.75)"
         />
+        <ZoomIndicator />
       </ReactFlow>
     </div>
+  );
+}
+
+function ZoomIndicator() {
+  const { zoom } = useViewport();
+  return (
+    <Panel position="bottom-center" className="zoom-indicator" aria-label="Canvas zoom">
+      {Math.round(zoom * 100)}%
+    </Panel>
   );
 }
 
