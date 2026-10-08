@@ -161,8 +161,8 @@ func TestMySQLDelimiterProcedureAndStop(t *testing.T) {
 	connection := testConnection(t, "SCHEMAPILOT_TEST_MYSQL", config.MySQL)
 	name := "sp_it_" + suffix()
 	files := newWorkspace(t, map[string]string{
-		"001_proc.sql": "CREATE TABLE " + name + " (id INT PRIMARY KEY);\nDELIMITER $$\nCREATE PROCEDURE " + name + "_fill()\nBEGIN\n  INSERT INTO " + name + " VALUES (1);\n  INSERT INTO " + name + " VALUES (2);\nEND$$\nDELIMITER ;\nCALL " + name + "_fill();",
-		"002_fail.sql": "INSERT INTO " + name + " VALUES (1);",
+		"001_proc.sql":  "CREATE TABLE " + name + " (id INT PRIMARY KEY);\nDELIMITER $$\nCREATE PROCEDURE " + name + "_fill()\nBEGIN\n  INSERT INTO " + name + " VALUES (1);\n  INSERT INTO " + name + " VALUES (2);\nEND$$\nDELIMITER ;\nCALL " + name + "_fill();",
+		"002_fail.sql":  "INSERT INTO " + name + " VALUES (1);",
 		"003_sleep.sql": "SELECT SLEEP(30);",
 	})
 	manager := NewManager(context.Background(), files)

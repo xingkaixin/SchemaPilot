@@ -57,7 +57,7 @@ func (server *Server) secure(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
 		response.Header().Set("X-Content-Type-Options", "nosniff")
 		response.Header().Set("Referrer-Policy", "no-referrer")
-		response.Header().Set("Content-Security-Policy", "default-src 'self'; img-src 'self' data:; font-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'wasm-unsafe-eval'; connect-src 'self'")
+		response.Header().Set("Content-Security-Policy", "default-src 'self'; img-src 'self' data:; font-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'")
 		if server.loopbackOnly && !isLoopbackHost(request.Host) {
 			writeError(response, http.StatusForbidden, "只接受 localhost 访问")
 			return

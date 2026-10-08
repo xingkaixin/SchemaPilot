@@ -64,6 +64,7 @@ type FileRun struct {
 	Executed         int             `json:"executed"`
 	Current          int             `json:"current,omitempty"`
 	CurrentStartedAt *time.Time      `json:"currentStartedAt,omitempty"`
+	CurrentText      string          `json:"currentText,omitempty"`
 	RowsAffected     int64           `json:"rowsAffected"`
 	Session          int64           `json:"session,omitempty"`
 	Error            *StatementError `json:"error,omitempty"`
@@ -298,6 +299,7 @@ func (run *execution) executeFile(ctx context.Context, files workspace.Workspace
 		run.update(path, func(file *FileRun) {
 			file.Current = statement.Index
 			file.CurrentStartedAt = &statementStart
+			file.CurrentText = summarize(statement.Text)
 		})
 		rows, err := session.Exec(ctx, statement.Text)
 		duration := time.Since(statementStart).Milliseconds()
@@ -344,6 +346,7 @@ func (run *execution) end(path string, status Status, change func(*FileRun)) Sta
 		file.FinishedAt = &finishedAt
 		file.Current = 0
 		file.CurrentStartedAt = nil
+		file.CurrentText = ""
 		if change != nil {
 			change(file)
 		}
