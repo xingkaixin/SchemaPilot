@@ -1,7 +1,6 @@
 [tools]
 go = "1.26.5"
-node = "24.18.1"
-pnpm = "11.18.0"
+bun = "1.4.2"
 
 [tasks.check]
 depends = ["check:go", "check:web"]
@@ -11,7 +10,7 @@ run = "go test ./..."
 
 [tasks."check:web"]
 dir = "web"
-run = "pnpm check"
+run = "bun run check"
 
 [tasks."test:integration"]
 run = "./scripts/test-integration.sh"
@@ -22,7 +21,7 @@ run = "go build -o bin/schemapilot ./cmd/schemapilot"
 
 [tasks."build:web"]
 dir = "web"
-run = "pnpm build"
+run = "bun run build"
 
 [tasks.dev]
 depends = ["dev:api", "dev:web"]
@@ -32,4 +31,4 @@ run = "go run ./cmd/schemapilot serve --graph examples/shop/migration.yaml --dat
 
 [tasks."dev:web"]
 dir = "web"
-run = "pnpm dev"
+run = "bun run dev"

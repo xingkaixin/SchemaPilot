@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test --run && pnpm build",
+    "check": "bun run format:check && bun run lint && bun run typecheck && bun run test --run && bun run build",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint": "eslint .",
