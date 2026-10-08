@@ -1,9 +1,13 @@
-import { defineConfig } from "vite";
+import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
+import tailwindcss from "@tailwindcss/vite";
 
 export default defineConfig({
-  plugins: [react()],
-  build: { outDir: "../internal/webui/dist", emptyOutDir: true },
-  server: { port: 5173 },
-  preview: { port: 4173 },
+  plugins: [react(), tailwindcss()],
+  build: { outDir: "../internal/webui/dist", emptyOutDir: true, chunkSizeWarningLimit: 1500 },
+  server: {
+    port: 5173,
+    proxy: { "/api": "http://127.0.0.1:8080" },
+  },
+  test: { environment: "node" },
 });

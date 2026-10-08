@@ -7,11 +7,11 @@ export default tseslint.config(
   { ignores: ["dist", "node_modules"] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
+  reactHooks.configs.flat["recommended-latest"],
   {
     files: ["**/*.{ts,tsx}"],
-    plugins: { "react-hooks": reactHooks, "react-refresh": reactRefresh },
+    plugins: { "react-refresh": reactRefresh },
     rules: {
-      ...reactHooks.configs.recommended.rules,
       "react-refresh/only-export-components": ["warn", { allowConstantExport: true }],
       "@typescript-eslint/no-unused-vars": ["error", { argsIgnorePattern: "^_" }],
     },
