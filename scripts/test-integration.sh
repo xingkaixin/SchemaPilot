@@ -1,27 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-services=(postgres mysql)
-
-if [[ "${SCHEMAPILOT_TEST_SQLSERVER:-}" == "1" ]]; then
-  services+=(sqlserver)
-  export COMPOSE_PROFILES=sqlserver
+# Point at existing databases with SCHEMAPILOT_TEST_POSTGRES / SCHEMAPILOT_TEST_MYSQL,
+# e.g. postgres://user:pass@host:5432/db?sslmode=disable and mysql://user:pass@host:3306/db.
+# Without them, throwaway containers from compose.yaml are started locally.
+if [[ -z "${SCHEMAPILOT_TEST_POSTGRES:-}" && -z "${SCHEMAPILOT_TEST_MYSQL:-}" ]]; then
+  trap 'docker compose down' EXIT
+  docker compose up -d --wait postgres mysql
+  export SCHEMAPILOT_TEST_POSTGRES="postgres://schemapilot:schemapilot@$(docker compose port postgres 5432)/schemapilot?sslmode=disable"
+  export SCHEMAPILOT_TEST_MYSQL="mysql://schemapilot:schemapilot@$(docker compose port mysql 3306)/schemapilot"
 fi
 
-cleanup() {
-  docker compose down
-}
-trap cleanup EXIT
-
-docker compose up -d --wait "${services[@]}"
-
-postgres_address="$(docker compose port postgres 5432)"
-mysql_address="$(docker compose port mysql 3306)"
-export SCHEMAPILOT_POSTGRES_DSN="postgres://schemapilot:schemapilot@${postgres_address}/schemapilot?sslmode=disable"
-export SCHEMAPILOT_MYSQL_DSN="schemapilot:schemapilot@tcp(${mysql_address})/schemapilot?parseTime=true&multiStatements=true"
-if [[ "${SCHEMAPILOT_TEST_SQLSERVER:-}" == "1" ]]; then
-  sqlserver_address="$(docker compose port sqlserver 1433)"
-  export SCHEMAPILOT_SQLSERVER_DSN="sqlserver://sa:SchemaPilot_dev_2026%21@${sqlserver_address}?database=master&encrypt=disable"
-fi
-
-go test -tags=integration -count=1 ./internal/database
+go test -tags=integration -count=1 ./internal/runner

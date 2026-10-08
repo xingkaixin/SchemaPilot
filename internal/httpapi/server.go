@@ -1,117 +1,75 @@
 package httpapi
 
 import (
-	"context"
+	"bytes"
+	"encoding/json"
 	"errors"
+	"io"
 	"io/fs"
 	"log/slog"
+	"mime"
+	"net"
 	"net/http"
+	"net/url"
+	"path"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/schemapilot/schemapilot/internal/execution"
+	"github.com/schemapilot/schemapilot/internal/runner"
+	"github.com/schemapilot/schemapilot/internal/workspace"
 )
 
-type Config struct {
-	Context       context.Context
-	Engine        *execution.Engine
-	Connector     execution.DatabaseConnector
-	GraphPath     string
-	DatabasesPath string
-	Assets        fs.FS
-	Logger        *slog.Logger
-}
+const maxJSONBodyBytes = 1 << 20
 
 type Server struct {
-	context       context.Context
-	engine        *execution.Engine
-	connector     execution.DatabaseConnector
-	graphPath     string
-	databasesPath string
-	assets        fs.FS
-	logger        *slog.Logger
-	workspaceMu   sync.Mutex
+	workspace workspace.Workspace
+	runs      *runner.Manager
+	assets    fs.FS
+	logger    *slog.Logger
+	// loopbackOnly rejects requests whose Host is not a loopback name, which
+	// stops DNS-rebinding pages from driving a locally bound server.
+	loopbackOnly bool
+
+	configMu sync.Mutex
 }
 
-func New(config Config) (*Server, error) {
-	if config.Engine == nil {
-		return nil, errors.New("execution engine is required")
-	}
-	if config.Connector == nil {
-		return nil, errors.New("database connector is required")
-	}
-	if strings.TrimSpace(config.GraphPath) == "" {
-		return nil, errors.New("graph path is required")
-	}
-	if strings.TrimSpace(config.DatabasesPath) == "" {
-		return nil, errors.New("databases path is required")
-	}
-	if config.Context == nil {
-		config.Context = context.Background()
-	}
-	if config.Logger == nil {
-		config.Logger = slog.Default()
-	}
-
-	return &Server{
-		context:       config.Context,
-		engine:        config.Engine,
-		connector:     config.Connector,
-		graphPath:     config.GraphPath,
-		databasesPath: config.DatabasesPath,
-		assets:        config.Assets,
-		logger:        config.Logger,
-	}, nil
+func New(files workspace.Workspace, runs *runner.Manager, assets fs.FS, logger *slog.Logger, loopbackOnly bool) *Server {
+	return &Server{workspace: files, runs: runs, assets: assets, logger: logger, loopbackOnly: loopbackOnly}
 }
 
 func (server *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /api/v1/project", server.getProject)
-	mux.HandleFunc("PUT /api/v1/graph", server.putGraph)
-	mux.HandleFunc("GET /api/v1/scripts", server.getScript)
-	mux.HandleFunc("POST /api/v1/scripts", server.postScript)
-	mux.HandleFunc("PUT /api/v1/scripts", server.putScript)
-	mux.HandleFunc("PUT /api/v1/databases/{name}", server.putDatabase)
-	mux.HandleFunc("DELETE /api/v1/databases/{name}", server.deleteDatabase)
-	mux.HandleFunc("POST /api/v1/databases/{name}/test", server.testDatabase)
-	mux.HandleFunc("GET /api/v1/runs", server.getRuns)
-	mux.HandleFunc("POST /api/v1/runs", server.startRun)
-	mux.HandleFunc("GET /api/v1/runs/{id}", server.getRun)
-	mux.HandleFunc("POST /api/v1/runs/{id}/resume", server.resumeRun)
-	mux.HandleFunc("GET /healthz", server.health)
-	mux.Handle("/", server.staticHandler())
-
-	return server.recoverPanics(server.logRequests(server.secure(mux)))
+	mux.HandleFunc("GET /api/workspace", server.getWorkspace)
+	mux.HandleFunc("POST /api/connections", server.saveConnection)
+	mux.HandleFunc("DELETE /api/connections/{name}", server.deleteConnection)
+	mux.HandleFunc("POST /api/connections/test", server.testConnection)
+	mux.HandleFunc("GET /api/file", server.getFile)
+	mux.HandleFunc("POST /api/files", server.importFiles)
+	mux.HandleFunc("POST /api/runs", server.startRun)
+	mux.HandleFunc("GET /api/runs/{connection}", server.getRun)
+	mux.HandleFunc("POST /api/runs/{connection}/stop", server.stopRun)
+	mux.Handle("/", server.static())
+	return server.recoverPanics(server.secure(mux))
 }
 
 func (server *Server) secure(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
 		response.Header().Set("X-Content-Type-Options", "nosniff")
 		response.Header().Set("Referrer-Policy", "no-referrer")
-		response.Header().Set("Content-Security-Policy", "default-src 'self'; img-src 'self' data:; font-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; worker-src 'self' blob:")
-		if strings.HasPrefix(request.URL.Path, "/api/") {
-			response.Header().Set("Cache-Control", "no-store")
-		}
-		if isMutation(request.Method) && request.Header.Get("Sec-Fetch-Site") == "cross-site" {
-			writeError(response, http.StatusForbidden, "cross-site mutations are not allowed")
+		response.Header().Set("Content-Security-Policy", "default-src 'self'; img-src 'self' data:; font-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'wasm-unsafe-eval'; connect-src 'self'")
+		if server.loopbackOnly && !isLoopbackHost(request.Host) {
+			writeError(response, http.StatusForbidden, "只接受 localhost 访问")
 			return
 		}
+		if strings.HasPrefix(request.URL.Path, "/api/") {
+			response.Header().Set("Cache-Control", "no-store")
+			if request.Method != http.MethodGet && !sameOrigin(request) {
+				writeError(response, http.StatusForbidden, "不接受跨站请求")
+				return
+			}
+		}
 		next.ServeHTTP(response, request)
-	})
-}
-
-func (server *Server) logRequests(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
-		startedAt := time.Now()
-		tracked := &statusWriter{ResponseWriter: response, status: http.StatusOK}
-		next.ServeHTTP(tracked, request)
-		server.logger.InfoContext(request.Context(), "http request",
-			"method", request.Method,
-			"path", request.URL.Path,
-			"status", tracked.status,
-			"duration", time.Since(startedAt),
-		)
 	})
 }
 
@@ -119,32 +77,91 @@ func (server *Server) recoverPanics(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
 		defer func() {
 			if recovered := recover(); recovered != nil {
-				server.logger.ErrorContext(request.Context(), "http handler panic", "error", recovered)
-				writeError(response, http.StatusInternalServerError, "internal server error")
+				server.logger.Error("http handler panic", "path", request.URL.Path, "error", recovered)
+				writeError(response, http.StatusInternalServerError, "服务器内部错误")
 			}
 		}()
 		next.ServeHTTP(response, request)
 	})
 }
 
-func (server *Server) health(response http.ResponseWriter, _ *http.Request) {
-	writeJSON(response, http.StatusOK, map[string]string{"status": "ok"})
+func (server *Server) static() http.Handler {
+	return http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		if server.assets == nil {
+			http.NotFound(response, request)
+			return
+		}
+		requested := strings.TrimPrefix(path.Clean("/"+request.URL.Path), "/")
+		if requested == "" {
+			requested = "index.html"
+		}
+		content, err := fs.ReadFile(server.assets, requested)
+		if err != nil {
+			requested = "index.html"
+			content, err = fs.ReadFile(server.assets, requested)
+		}
+		if err != nil {
+			http.NotFound(response, request)
+			return
+		}
+		if contentType := mime.TypeByExtension(path.Ext(requested)); contentType != "" {
+			response.Header().Set("Content-Type", contentType)
+		}
+		if requested == "index.html" {
+			response.Header().Set("Cache-Control", "no-cache")
+		} else {
+			response.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+		}
+		http.ServeContent(response, request, requested, time.Time{}, bytes.NewReader(content))
+	})
 }
 
-func isMutation(method string) bool {
-	return method == http.MethodPost || method == http.MethodPut || method == http.MethodPatch || method == http.MethodDelete
+func sameOrigin(request *http.Request) bool {
+	if request.Header.Get("Sec-Fetch-Site") == "cross-site" {
+		return false
+	}
+	origin := request.Header.Get("Origin")
+	if origin == "" {
+		return true
+	}
+	parsed, err := url.Parse(origin)
+	return err == nil && parsed.Host == request.Host
 }
 
-type statusWriter struct {
-	http.ResponseWriter
-	status int
+func isLoopbackHost(hostport string) bool {
+	host := hostport
+	if parsed, _, err := net.SplitHostPort(hostport); err == nil {
+		host = parsed
+	}
+	host = strings.Trim(host, "[]")
+	if strings.EqualFold(host, "localhost") {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
 }
 
-func (writer *statusWriter) Unwrap() http.ResponseWriter {
-	return writer.ResponseWriter
+func readJSON(response http.ResponseWriter, request *http.Request, target any) error {
+	request.Body = http.MaxBytesReader(response, request.Body, maxJSONBodyBytes)
+	decoder := json.NewDecoder(request.Body)
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(target); err != nil {
+		return errors.New("请求格式错误: " + err.Error())
+	}
+	if _, err := decoder.Token(); !errors.Is(err, io.EOF) {
+		return errors.New("请求体只能包含一个 JSON 值")
+	}
+	return nil
 }
 
-func (writer *statusWriter) WriteHeader(status int) {
-	writer.status = status
-	writer.ResponseWriter.WriteHeader(status)
+func writeJSON(response http.ResponseWriter, status int, value any) {
+	response.Header().Set("Content-Type", "application/json; charset=utf-8")
+	response.WriteHeader(status)
+	encoder := json.NewEncoder(response)
+	encoder.SetEscapeHTML(false)
+	_ = encoder.Encode(value)
+}
+
+func writeError(response http.ResponseWriter, status int, message string) {
+	writeJSON(response, status, map[string]string{"error": message})
 }

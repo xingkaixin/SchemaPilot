@@ -1,0 +1,18 @@
+[connections.mysql-report]
+driver = 'mysql'
+host = '127.0.0.1'
+port = 3306
+database = 'report'
+user = 'schemapilot'
+password = '${SHOP_MYSQL_PASSWORD}'
+
+[connections.pg-main]
+driver = 'postgres'
+host = '127.0.0.1'
+port = 5432
+database = 'shop'
+user = 'schemapilot'
+password = '${SHOP_PG_PASSWORD}'
+
+[connections.pg-main.params]
+sslmode = 'disable'
