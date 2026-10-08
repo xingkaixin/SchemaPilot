@@ -1,57 +1,39 @@
-# Database Migration Orchestration
+# SQL File Orchestration
 
-This context describes a database migration as a dependency graph whose nodes apply ordered SQL scripts to named databases, with every execution recorded for inspection and recovery.
+SchemaPilot runs the SQL files of a working directory against named database connections, in an order the user arranges, statement by statement.
 
-## Authoring
+**Workspace**:
+The directory SchemaPilot was started in. It holds `schemapilot.toml` and the SQL files.
+_Avoid_: Project, repository
 
-**Migration Workspace**:
-A local authoring area that may begin empty and holds the Database Profiles, Migration Scripts, and Migration Graph needed to become runnable.
-_Avoid_: Project, workflow directory, repository
+**Connection**:
+A named database destination stored in `schemapilot.toml`. Its name doubles as the sub-directory whose files are assigned to it automatically.
+_Avoid_: Database profile, datasource
 
-## Definition
+**Unassigned file**:
+A SQL file in the workspace that belongs to no connection's arrangement yet.
 
-**Migration Graph**:
-The declarative, acyclic set of Migration Nodes and their dependencies.
-_Avoid_: Workflow, job, migration
+**Arrangement**:
+The execution order of one connection's files: a list of steps.
+_Avoid_: Graph, DAG, pipeline
 
-**Migration Node**:
-An ordered group of Migration Scripts that targets one Database Profile and becomes eligible only after all of its dependencies succeed.
-_Avoid_: Task, step, stage
+**Step**:
+One position in an arrangement. It holds one or more lanes; the next step starts only after every lane finishes.
+_Avoid_: Stage, node
 
-**Migration Script**:
-A versioned SQL file applied as one tracked change inside a Migration Node.
-_Avoid_: File, command
+**Lane**:
+A parallel branch inside a step; its files run one after another on the same database session.
+_Avoid_: Branch, thread
 
-**Database Profile**:
-A named database destination referenced by Migration Nodes without embedding connection details in the Migration Graph.
-_Avoid_: Connection, datasource, database config
+**Disabled file**:
+A file that stays in the arrangement but is skipped when running.
 
-## Execution
+**Missing file**:
+An arranged file that no longer exists on disk. It keeps its place and blocks running until it is restored or disabled.
 
-**Migration Run**:
-One logical execution of a Migration Graph, including any recovery attempts made after failure.
-_Avoid_: Workflow run, task, execution job
+**Run**:
+One execution of a plan built from an arrangement: all enabled files, or, when continuing, the ones that have not succeeded.
+_Avoid_: Job, attempt
 
-**Run Attempt**:
-One initial or resumed effort to advance a Migration Run toward completion.
-_Avoid_: Retry, rerun
-
-**Node Execution**:
-The recorded outcome of a Migration Node during a Run Attempt.
-_Avoid_: Node run, task execution
-
-**Script Execution**:
-The recorded outcome of one Migration Script during a Run Attempt.
-_Avoid_: File execution, statement execution
-
-**Applied Script**:
-A Migration Script whose checksum is recorded in its target database, whether it was applied in the current Migration Run or an earlier one.
-_Avoid_: Completed file, installed migration
-
-**Blocked Node**:
-A Migration Node that cannot become eligible because at least one dependency failed.
-_Avoid_: Skipped node, pending node
-
-**Completed with Errors**:
-The outcome of a Migration Node whose configured policy allowed later scripts and downstream nodes to proceed after one or more Script Executions failed.
-_Avoid_: Ignored, successful
+**Statement**:
+One executable unit split out of a file. Statements commit individually, so a failed file may have committed its earlier statements.

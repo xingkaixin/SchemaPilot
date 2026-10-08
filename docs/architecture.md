@@ -1,56 +1,32 @@
 # Architecture
 
-SchemaPilot is a database migration graph runner with two adapters at its outermost seam: a CLI and an HTTP/Web application. Both invoke the same execution module and observe the same persisted run state.
-
 ```text
-YAML graph + TOML profiles
-           |
-           v
-   Project loader module
-           |
-           v
-   Migration execution module
-      |                |
-      v                v
-Database adapter   Run store adapter
-      |                |
-      v                v
-target databases   local SQLite state
-           ^
-           |
-       CLI / HTTP
+browser (React + Kumo)                       schemapilot (Go)
+  arrangement + results  ── localStorage
+  polling ───────────────── HTTP API ── workspace: scan dir, read/import .sql
+                                     ── config:    schemapilot.toml
+                                     ── runner:    steps → lanes → files → statements
+                                                     └─ database: postgres / mysql drivers
+                                                     └─ sqlscript: split files into statements
 ```
 
-## Module seams
+## Ownership
 
-- The project module exposes a tolerant workspace inspection path for Web authoring and a strict project load path for execution. It hides parsing, environment expansion, safe path resolution, script loading, checksums, and DAG validation. Missing files become authoring problems, while run and resume still fail strict validation.
-- The execution module has two commands: start a Migration Run and resume one. It hides dependency scheduling, bounded concurrency, sequential script execution, error policy, state transitions, and applied-script checks.
-- The database seam is real because PostgreSQL, MySQL, SQL Server, and an in-memory test adapter differ in connection and history-table behavior.
-- The run-store seam is real because production uses SQLite while execution tests use an in-memory adapter.
-- CLI and HTTP are adapters. They contain presentation and transport behavior only; orchestration rules do not live there.
+- **The browser owns the arrangement and history.** Which connection a file belongs to, the step/lane order, disabled files and the last result of every file live in localStorage, keyed by the working directory. The server never stores them.
+- **The server owns the directory, the config file and the live run.** `GET /api/workspace` lists connections and files; files under `./<connection>/` carry that connection name so the browser can assign them. Saving a connection rewrites `schemapilot.toml`.
+- **A run is a plan the browser sends.** `POST /api/runs` takes `steps[lane][file]` already filtered (disabled files removed; when continuing, succeeded files removed). The runner keeps only the latest run per connection in memory; the browser polls `GET /api/runs/{connection}` and merges each file result into its history.
 
-## Configuration
+## Runner
 
-The YAML file owns topology and repository-relative SQL paths. The TOML file owns Database Profiles and may reference environment variables. This keeps credentials out of the shareable graph and lets the same graph run against different environments.
+- Steps run in order. Each lane of a step runs in its own goroutine on one pinned database session, so temporary tables and session settings carry across the files of a lane.
+- Files are read when they start, split by `internal/sqlscript`, and executed one statement at a time in autocommit mode. Each statement's rows, duration and server notices are logged (the log keeps the last 500 entries per file).
+- A failure marks the run as halted: lanes finish their current file and start nothing new.
+- Stopping first asks the server to cancel each active session's statement through a separate connection, then cancels the context. Closing a MySQL connection alone would leave the query running on the server.
 
-## Execution invariants
+## Drivers
 
-- A graph must be acyclic and every dependency and Database Profile reference must resolve before a run is created.
-- Nodes may run concurrently only after all dependencies have an outcome that permits downstream execution.
-- Scripts within one node run exactly in listed order.
-- A previously Applied Script with the same checksum is not executed again.
-- A previously Applied Script with a different checksum stops execution unless the caller explicitly forces it.
-- A failed dependency produces a Blocked Node; it is never reported as pending or successful.
-- Resume advances the same Migration Run through a new Run Attempt and never overwrites prior execution evidence.
-- Resume accepts repaired script contents but rejects graph-structure or database-environment changes.
-- History-table initialization is serialized per driver and DSN so parallel nodes targeting the same new database cannot race during bootstrap.
-- Graph, Database Profile, and SQL writes are serialized, use atomic file replacement where mutation is allowed, and are guarded by resource fingerprints; stale Web edits fail instead of overwriting newer content.
+`internal/database` hides the differences between PostgreSQL (pgx) and MySQL: connection strings, session ids, cancellation, version queries, notice capture (PostgreSQL only) and error details (SQLSTATE, detail, hint, error position). Adding a driver means adding one implementation and listing it in `drivers`; the connection dialog reads the list from the API.
 
-## State ownership
+## Security
 
-The target database history and the local run journal answer different questions:
-
-- `_schemapilot_history` answers whether a specific graph/node/script identity has already been applied to that database and with which checksum.
-- SQLite answers what happened during each operator Run and Attempt, including failures, blocked work, durations, rows affected, and logs.
-
-Neither can be derived from the other, so both are necessary. Database credentials are never copied into SQLite; only an environment fingerprint is stored for resume safety.
+The server binds to 127.0.0.1 by default. It then rejects requests whose `Host` is not a loopback name (DNS rebinding) and any cross-origin non-GET request, because the API can run arbitrary SQL against configured databases.
