@@ -1,11 +1,7 @@
 import { Badge, Button, Tooltip } from "@cloudflare/kumo";
-import {
-  ArrowClockwiseIcon,
-  FileTextIcon,
-  FolderSimpleIcon,
-  PathIcon,
-} from "@phosphor-icons/react";
+import { ArrowClockwiseIcon, FileTextIcon, FolderSimpleIcon } from "@phosphor-icons/react";
 import type { Workspace } from "../api";
+import { Logo } from "./Logo";
 
 export function Header({
   workspace,
@@ -19,8 +15,8 @@ export function Header({
   return (
     <header className="sticky top-0 z-20 flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-kumo-hairline bg-kumo-base px-5 py-2.5">
       <div className="flex items-center gap-2.5">
-        <span className="flex size-7 items-center justify-center rounded-lg bg-kumo-contrast text-kumo-inverse">
-          <PathIcon size={16} weight="bold" />
+        <span className="text-kumo-default">
+          <Logo size={28} />
         </span>
         <span className="text-[15px] font-semibold">SchemaPilot</span>
       </div>
