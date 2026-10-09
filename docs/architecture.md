@@ -6,7 +6,7 @@ browser (React + Kumo)                       schemapilot (Go)
   polling ───────────────── HTTP API ── workspace: scan dir, read/import .sql
                                      ── config:    schemapilot.toml
                                      ── runner:    steps → lanes → files → statements
-                                                     └─ database: postgres / mysql / sqlserver / oracle / sqlite drivers
+                                                     └─ database: postgres / mysql / sqlserver / oracle / sqlite / opengauss / dm / xugu drivers
                                                      └─ sqlscript: split files into statements
 ```
 
@@ -25,7 +25,7 @@ browser (React + Kumo)                       schemapilot (Go)
 
 ## Drivers
 
-`internal/database` hides the differences between PostgreSQL (pgx), MySQL, SQL Server (go-mssqldb), Oracle (go-ora) and SQLite (modernc): connection strings, session ids, cancellation, version queries, notice capture (PostgreSQL only) and error details (SQLSTATE, detail, hint, error position). Adding a driver means adding one implementation and listing it in `drivers`; the connection dialog reads the list from the API.
+`internal/database` hides the differences between PostgreSQL (pgx), MySQL, SQL Server (go-mssqldb), Oracle (go-ora), SQLite (modernc), openGauss (openGauss-connector-go-pq), DM (chunanyong/dm) and Xugu (go-xugu-driver): connection strings, session ids, cancellation, version queries, notice capture (PostgreSQL only) and error details (SQLSTATE, detail, hint, error position). Adding a driver means adding one implementation and listing it in `drivers`; the connection dialog reads the list from the API.
 
 ## Security
 

@@ -49,10 +49,15 @@ password = '${MYSQL_PASSWORD}'
 | `sqlserver` | SQL Server | `database` 填库名 |
 | `oracle` | Oracle | `database` 填服务名，例如 `FREEPDB1` |
 | `sqlite` | SQLite | 只需 `database`：数据库文件路径，相对路径从启动目录算起 |
+| `opengauss` | openGauss | 支持 SHA256、SM3 密码认证 |
+| `dm` | 达梦 DM8 | `database` 填默认模式（schema），可留空 |
+| `xugu` | 虚谷 XuguDB | `database` 填库名，例如 `SYSTEM` |
 
 兼容 MySQL 协议的数据库：`mariadb`、`tidb`、`oceanbase`（MySQL 模式）、`goldendb`、`tdsql-mysql`、`polardb-mysql`（含 PolarDB-X）、`greatsql`、`gbase8a`。
 
 兼容 PostgreSQL 协议的数据库：`polardb-pg`、`tdsql-pg`、`opentenbase`、`kwdb`。
+
+基于 openGauss 内核的数据库：`vastbase`、`gbase8c`、`gaussdb`。
 
 这些类型使用对应协议的驱动和脚本拆分规则，单独列出是为了在页面上直接选到。
 
@@ -65,14 +70,15 @@ password = '${MYSQL_PASSWORD}'
   - PostgreSQL 支持 `$$` 函数体。
   - MySQL 支持 `DELIMITER` 命令，可用来定义存储过程。
   - SQL Server 支持单独一行的 `GO` 结束批次；`CREATE PROCEDURE/FUNCTION/TRIGGER` 一直到 `GO` 或文件末尾为一条；`BEGIN … END` 块内的分号不拆分。
-  - Oracle 的 PL/SQL 块（`DECLARE`/`BEGIN`、`CREATE PROCEDURE/FUNCTION/PACKAGE/TRIGGER/TYPE`）以单独一行的 `/` 结束；普通 SQL 末尾的分号会去掉。
+  - Oracle、达梦、虚谷的 PL/SQL 块（`DECLARE`/`BEGIN`、`CREATE PROCEDURE/FUNCTION/PACKAGE/TRIGGER/TYPE`）以单独一行的 `/` 结束；普通 SQL 末尾的分号会去掉。
+  - openGauss 在 PostgreSQL 规则之外，支持 gsql 写法：`AS`/`IS` 后直接跟 PL/SQL 的存储过程、函数，以及 `DECLARE`/`BEGIN` 匿名块，以单独一行的 `/` 结束。
   - SQLite 的 `CREATE TRIGGER … BEGIN … END` 作为一条执行。
 - 任何文件失败后，整条执行顺序暂停：正在执行的其他分支跑完当前文件后停止，后续文件不再开始。页面会标出失败的语句、行号和数据库返回的错误。
 - 暂停后可以：
   - **从失败处继续**：已成功的文件跳过；失败的文件从第 1 条语句重新执行。如果它前面的语句已经提交，需要先确认它们可以重复执行，或修改文件。
   - **禁用文件**：被禁用的文件在运行时跳过。⋯ 菜单里可以一次禁用某个文件之后的全部文件。
   - **全部重跑**：所有启用的文件从头执行。
-- **停止**会在数据库端取消正在运行的语句（PostgreSQL 用 `pg_cancel_backend`，MySQL 用 `KILL QUERY`，SQL Server、Oracle、SQLite 由驱动发送中断），已提交的语句不会回滚。
+- **停止**会在数据库端取消正在运行的语句（PostgreSQL、openGauss 用 `pg_cancel_backend`，MySQL 用 `KILL QUERY`，达梦用 `SP_CANCEL_SESSION_OPERATION`，虚谷用 `DBMS_DBA.KILL_SESSION_TRANS`，SQL Server、Oracle、SQLite 由驱动发送中断），已提交的语句不会回滚。
 - 不支持 psql 元命令、`COPY ... FROM stdin` 以及 PostgreSQL 的 `BEGIN ATOMIC` 函数体。
 
 ## 数据保存在哪里
