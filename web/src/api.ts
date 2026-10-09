@@ -4,6 +4,7 @@ export interface DriverInfo {
   id: Driver;
   label: string;
   defaultPort: number;
+  file?: boolean;
 }
 
 export interface Connection {

@@ -28,6 +28,7 @@ import { useUi } from "../ui";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { DetailPanel } from "./DetailPanel";
 import { Pipeline } from "./Pipeline";
+import { driverBadge } from "../lib/driver";
 
 type Confirm = "stop" | "all" | "clear" | null;
 
@@ -50,7 +51,9 @@ export function ConnectionView({
   const existing = new Set(workspace.files.map((file) => file.path));
   const overview = runOverview(state, existing);
   const driver = workspace.drivers.find((item) => item.id === connection.driver);
-  const address = `${connection.user ? `${connection.user}@` : ""}${connection.host}:${connection.port || driver?.defaultPort || ""}/${connection.database}`;
+  const address = driver?.file
+    ? connection.database
+    : `${connection.user ? `${connection.user}@` : ""}${connection.host}:${connection.port || driver?.defaultPort || ""}/${connection.database}`;
   const blocked = overview.missing.length > 0 || overview.enabled.length === 0;
 
   const start = async (mode: RunMode) => {
@@ -89,7 +92,7 @@ export function ConnectionView({
         <div className="flex min-w-0 flex-col gap-1">
           <div className="flex items-center gap-2">
             <h1 className="m-0 text-xl font-semibold">{name}</h1>
-            <Badge variant={connection.driver === "mysql" ? "teal" : "blue"}>
+            <Badge variant={driverBadge(connection.driver)}>
               {driver?.label ?? connection.driver}
             </Badge>
           </div>

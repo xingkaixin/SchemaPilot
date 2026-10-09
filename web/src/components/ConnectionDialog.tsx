@@ -16,7 +16,7 @@ import { useStore } from "../store";
 import { notifyError } from "../toasts";
 import { useUi } from "../ui";
 import { ConfirmDialog } from "./ConfirmDialog";
-import { driverTone } from "../lib/driver";
+import { driverParamsExample, driverTone } from "../lib/driver";
 
 interface Draft {
   name: string;
@@ -42,16 +42,16 @@ function toDraft(connection?: Connection, driver = "postgres"): Draft {
   };
 }
 
-function toConnection(draft: Draft): Connection {
+function toConnection(draft: Draft, file: boolean): Connection {
   const params = Object.fromEntries(new URLSearchParams(draft.params.trim()));
   return {
     name: draft.name.trim(),
     driver: draft.driver,
-    host: draft.host.trim(),
-    port: draft.port ? Number(draft.port) : undefined,
+    host: file ? "" : draft.host.trim(),
+    port: !file && draft.port ? Number(draft.port) : undefined,
     database: draft.database.trim(),
-    user: draft.user.trim(),
-    password: draft.password,
+    user: file ? "" : draft.user.trim(),
+    password: file ? "" : draft.password,
     params: Object.keys(params).length > 0 ? params : undefined,
   };
 }
@@ -91,6 +91,7 @@ function ConnectionForm({
   const [error, setError] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const driver = workspace.drivers.find((item) => item.id === draft.driver);
+  const file = driver?.file ?? false;
   const change = (patch: Partial<Draft>) => {
     setDraft((current) => ({ ...current, ...patch }));
     setTest(null);
@@ -100,7 +101,7 @@ function ConnectionForm({
   const runTest = async () => {
     setTesting(true);
     try {
-      setTest({ ok: true, result: await api.testConnection(toConnection(draft)) });
+      setTest({ ok: true, result: await api.testConnection(toConnection(draft, file)) });
     } catch (failure) {
       setTest({ ok: false, message: failure instanceof Error ? failure.message : String(failure) });
     } finally {
@@ -112,7 +113,7 @@ function ConnectionForm({
     setSaving(true);
     setError(null);
     try {
-      const saved = await api.saveConnection(toConnection(draft), existing?.name);
+      const saved = await api.saveConnection(toConnection(draft, file), existing?.name);
       if (existing && existing.name !== saved.name) renameConnection(existing.name, saved.name);
       await queryClient.invalidateQueries({ queryKey: ["workspace"] });
       select(saved.name);
@@ -178,7 +179,9 @@ function ConnectionForm({
           label="数据库类型"
           className="w-full"
           value={draft.driver}
-          onValueChange={(value) => change({ driver: String(value), port: "" })}
+          onValueChange={(value) =>
+            change({ driver: String(value), port: "", host: draft.host || "127.0.0.1" })
+          }
           renderValue={(value) => (
             <DriverOption
               id={String(value)}
@@ -192,58 +195,70 @@ function ConnectionForm({
             </Select.Option>
           ))}
         </Select>
-        <div className="grid grid-cols-[minmax(0,1fr)_112px] gap-3">
+        {file ? (
           <Input
-            label="主机"
+            label="数据库文件"
             className="w-full min-w-0 font-mono"
             required
-            value={draft.host}
-            onChange={(event) => change({ host: event.target.value })}
+            placeholder="data/app.db"
+            value={draft.database}
+            onChange={(event) => change({ database: event.target.value })}
+            description="相对路径从当前目录算起；文件不存在时会新建"
           />
-          <Input
-            label="端口"
-            className="w-full min-w-0 font-mono"
-            inputMode="numeric"
-            placeholder={driver ? String(driver.defaultPort) : ""}
-            value={draft.port}
-            onChange={(event) => change({ port: event.target.value.replace(/\D/g, "") })}
-          />
-        </div>
-        <Input
-          label="数据库"
-          className="w-full min-w-0 font-mono"
-          value={draft.database}
-          onChange={(event) => change({ database: event.target.value })}
-        />
-        <div className="grid grid-cols-2 gap-3">
-          <Input
-            label="用户名"
-            className="w-full min-w-0 font-mono"
-            autoComplete="off"
-            value={draft.user}
-            onChange={(event) => change({ user: event.target.value })}
-          />
-          <SensitiveInput
-            label="密码"
-            autoComplete="new-password"
-            value={draft.password}
-            onValueChange={(value: string) => change({ password: value })}
-          />
-        </div>
-        <p className="m-0 -mt-2 text-sm text-kumo-subtle">
-          密码会以明文写入配置文件；可以填{" "}
-          <span className="font-mono text-[0.9em] text-kumo-default">{"${PG_PASSWORD}"}</span>{" "}
-          改为启动时读取环境变量。
-        </p>
+        ) : (
+          <>
+            <div className="grid grid-cols-[minmax(0,1fr)_112px] gap-3">
+              <Input
+                label="主机"
+                className="w-full min-w-0 font-mono"
+                required
+                value={draft.host}
+                onChange={(event) => change({ host: event.target.value })}
+              />
+              <Input
+                label="端口"
+                className="w-full min-w-0 font-mono"
+                inputMode="numeric"
+                placeholder={driver ? String(driver.defaultPort) : ""}
+                value={draft.port}
+                onChange={(event) => change({ port: event.target.value.replace(/\D/g, "") })}
+              />
+            </div>
+            <Input
+              label={draft.driver === "oracle" ? "服务名" : "数据库"}
+              className="w-full min-w-0 font-mono"
+              value={draft.database}
+              onChange={(event) => change({ database: event.target.value })}
+            />
+            <div className="grid grid-cols-2 gap-3">
+              <Input
+                label="用户名"
+                className="w-full min-w-0 font-mono"
+                autoComplete="off"
+                value={draft.user}
+                onChange={(event) => change({ user: event.target.value })}
+              />
+              <SensitiveInput
+                label="密码"
+                autoComplete="new-password"
+                value={draft.password}
+                onValueChange={(value: string) => change({ password: value })}
+              />
+            </div>
+            <p className="m-0 -mt-2 text-sm text-kumo-subtle">
+              密码会以明文写入配置文件；可以填{" "}
+              <span className="font-mono text-[0.9em] text-kumo-default">{"${PG_PASSWORD}"}</span>{" "}
+              改为启动时读取环境变量。
+            </p>
+          </>
+        )}
         <Collapsible.Root defaultOpen={draft.params !== ""}>
           <Collapsible.DefaultTrigger>高级选项</Collapsible.DefaultTrigger>
           <Collapsible.DefaultPanel>
             <Input
               label="连接参数"
               className="w-full min-w-0 font-mono"
-              placeholder={
-                draft.driver === "mysql" ? "tls=skip-verify&charset=utf8mb4" : "sslmode=disable"
-              }
+              placeholder={driverParamsExample(draft.driver)}
               value={draft.params}
               onChange={(event) => change({ params: event.target.value })}
               description="以 key=value 形式追加到连接串，多个参数用 & 连接"
@@ -275,7 +290,11 @@ function ConnectionForm({
 
       <div className="flex items-center justify-between gap-2 border-t border-kumo-hairline px-6 py-3.5">
         <div className="flex gap-2">
-          <Button loading={testing} disabled={!draft.host} onClick={runTest}>
+          <Button
+            loading={testing}
+            disabled={file ? !draft.database.trim() : !draft.host.trim()}
+            onClick={runTest}
+          >
             测试连接
           </Button>
           {existing && (
