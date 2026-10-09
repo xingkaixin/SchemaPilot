@@ -59,7 +59,15 @@ export function ConnectionView({
   const address = driver?.file
     ? connection.database
     : `${connection.user ? `${connection.user}@` : ""}${connection.host}:${connection.port || driver?.defaultPort || ""}/${connection.database}`;
-  const blocked = overview.missing.length > 0 || overview.enabled.length === 0;
+  const acceptDriver = useStore((store) => store.acceptDriver);
+  const accepted = useStore((store) => store.acceptedDrivers.includes(name));
+  const arrangedDriver = workspace.arrangement?.connections[name]?.driver;
+  const protocolOf = (id?: string) =>
+    workspace.drivers.find((item) => item.id === id)?.protocol ?? id;
+  // Compatible databases share a protocol, so PolarDB arranged for PostgreSQL still fits.
+  const driverMismatch =
+    !!arrangedDriver && !accepted && protocolOf(arrangedDriver) !== protocolOf(connection.driver);
+  const blocked = overview.missing.length > 0 || overview.enabled.length === 0 || driverMismatch;
 
   const start = async (mode: RunMode) => {
     const steps = buildSteps(state, mode);
@@ -180,6 +188,20 @@ export function ConnectionView({
           )}
         </div>
       </div>
+
+      {driverMismatch && (
+        <Banner
+          variant="error"
+          icon={<WarningIcon weight="fill" />}
+          title={`编排是按 ${workspace.drivers.find((item) => item.id === arrangedDriver)?.label ?? arrangedDriver} 准备的，这个连接配置的是 ${driver?.label ?? connection.driver}`}
+          description="不同数据库的 SQL 语法不同，暂时不能运行。确认是同一类数据库、或连接配错了，修改连接后即可；确认无误也可以改为以当前连接类型为准。"
+          action={
+            <Button size="sm" onClick={() => acceptDriver(name)}>
+              以当前类型为准
+            </Button>
+          }
+        />
+      )}
 
       {overview.missing.length > 0 && (
         <Banner

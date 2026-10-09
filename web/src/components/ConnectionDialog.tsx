@@ -14,7 +14,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { api, type Connection, type DriverInfo, type TestResult, type Workspace } from "../api";
 import { useStore } from "../store";
 import { notifyError } from "../toasts";
-import { useUi } from "../ui";
+import { useUi, type ConnectionPreset } from "../ui";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { driverDatabaseLabel, driverParamsExample, driverTone } from "../lib/driver";
 
@@ -57,15 +57,21 @@ function toConnection(draft: Draft, file: boolean): Connection {
 }
 
 export function ConnectionDialog({ workspace }: { workspace: Workspace }) {
-  const { open, editing } = useUi((ui) => ui.connectionDialog);
+  const { open, editing, preset } = useUi((ui) => ui.connectionDialog);
   const close = useUi((ui) => ui.closeConnectionDialog);
   const existing = workspace.connections.find((connection) => connection.name === editing);
   // Remount the form whenever the dialog opens for a different connection.
-  const formKey = `${open}-${editing ?? ""}`;
+  const formKey = `${open}-${editing ?? preset?.name ?? ""}`;
   return (
     <Dialog.Root open={open} onOpenChange={(next) => !next && close()}>
       <Dialog size="lg" className="p-0">
-        <ConnectionForm key={formKey} workspace={workspace} existing={existing} onDone={close} />
+        <ConnectionForm
+          key={formKey}
+          workspace={workspace}
+          existing={existing}
+          preset={preset}
+          onDone={close}
+        />
       </Dialog>
     </Dialog.Root>
   );
@@ -74,15 +80,20 @@ export function ConnectionDialog({ workspace }: { workspace: Workspace }) {
 function ConnectionForm({
   workspace,
   existing,
+  preset,
   onDone,
 }: {
   workspace: Workspace;
   existing?: Connection;
+  preset?: ConnectionPreset;
   onDone: () => void;
 }) {
   const queryClient = useQueryClient();
   const { renameConnection, removeConnection, select } = useStore.getState();
-  const [draft, setDraft] = useState(() => toDraft(existing, workspace.drivers[0]?.id));
+  const [draft, setDraft] = useState(() => {
+    const draft = toDraft(existing, preset?.driver ?? workspace.drivers[0]?.id);
+    return preset && !existing ? { ...draft, name: preset.name } : draft;
+  });
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
   const [test, setTest] = useState<

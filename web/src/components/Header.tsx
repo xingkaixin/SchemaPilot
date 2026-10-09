@@ -1,6 +1,13 @@
+import { useState } from "react";
 import { Badge, Button, Tooltip } from "@cloudflare/kumo";
-import { ArrowClockwiseIcon, FileTextIcon, FolderSimpleIcon } from "@phosphor-icons/react";
+import {
+  ArrowClockwiseIcon,
+  FileTextIcon,
+  FolderSimpleIcon,
+  PackageIcon,
+} from "@phosphor-icons/react";
 import type { Workspace } from "../api";
+import { PackageDialog } from "./PackageDialog";
 import { Logo } from "./Logo";
 
 export function Header({
@@ -12,6 +19,7 @@ export function Header({
   refreshing: boolean;
   onRescan: () => void;
 }) {
+  const [packaging, setPackaging] = useState(false);
   return (
     <header className="sticky top-0 z-20 flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-kumo-hairline bg-kumo-base px-5 py-2.5">
       <div className="flex items-center gap-2.5">
@@ -46,9 +54,15 @@ export function Header({
           )}
         </span>
       </div>
-      <Button icon={ArrowClockwiseIcon} loading={refreshing} onClick={onRescan}>
-        重新扫描目录
-      </Button>
+      <div className="flex gap-2">
+        <Button icon={PackageIcon} onClick={() => setPackaging(true)}>
+          导出包
+        </Button>
+        <Button icon={ArrowClockwiseIcon} loading={refreshing} onClick={onRescan}>
+          重新扫描目录
+        </Button>
+      </div>
+      <PackageDialog workspace={workspace} open={packaging} onClose={() => setPackaging(false)} />
     </header>
   );
 }

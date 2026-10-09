@@ -5,6 +5,7 @@ import {
   DatabaseIcon,
   PlusIcon,
   UploadSimpleIcon,
+  WarningIcon,
   XCircleIcon,
 } from "@phosphor-icons/react";
 import type { Connection, DriverInfo, Workspace } from "../api";
@@ -23,11 +24,16 @@ export function Sidebar({ workspace }: { workspace: Workspace }) {
   const assign = useStore((state) => state.assign);
   const openConnectionDialog = useUi((state) => state.openConnectionDialog);
 
-  const arranged = new Set(
-    workspace.connections.flatMap((connection) =>
-      allPaths(connections[connection.name]?.steps ?? []),
-    ),
-  );
+  const arranged = new Set(Object.values(connections).flatMap((state) => allPaths(state.steps)));
+  // Arranged here (e.g. unpacked from a package) but missing from this directory's config.
+  const unconfigured = Object.entries(connections)
+    .filter(([, state]) => state.steps.length > 0)
+    .filter(([name]) => !workspace.connections.some((connection) => connection.name === name))
+    .map(([name, state]) => ({
+      name,
+      files: allPaths(state.steps).length,
+      driver: workspace.arrangement?.connections[name]?.driver,
+    }));
   const unassigned = workspace.files.filter((file) => !arranged.has(file.path));
   const allChecked =
     unassigned.length > 0 && unassigned.every((file) => checked.includes(file.path));
@@ -49,7 +55,7 @@ export function Sidebar({ workspace }: { workspace: Workspace }) {
             onClick={() => openConnectionDialog()}
           />
         </div>
-        {workspace.connections.length === 0 ? (
+        {workspace.connections.length === 0 && unconfigured.length === 0 ? (
           <div className="flex flex-col gap-2.5 rounded-lg bg-kumo-recessed p-3 text-sm text-kumo-subtle">
             <span>还没有连接。SQL 文件分配到连接后才能执行。</span>
             <Button className="self-start" icon={PlusIcon} onClick={() => openConnectionDialog()}>
@@ -66,6 +72,29 @@ export function Sidebar({ workspace }: { workspace: Workspace }) {
             />
           ))
         )}
+        {unconfigured.map((item) => {
+          const label = workspace.drivers.find((driver) => driver.id === item.driver)?.label;
+          return (
+            <button
+              key={item.name}
+              type="button"
+              onClick={() =>
+                openConnectionDialog(undefined, { name: item.name, driver: item.driver })
+              }
+              className="flex w-full cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 text-left outline-1 -outline-offset-1 outline-kumo-interact outline-dashed hover:bg-kumo-tint"
+            >
+              <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-kumo-warning-tint text-kumo-warning">
+                <WarningIcon size={16} weight="fill" />
+              </span>
+              <span className="flex min-w-0 flex-1 flex-col">
+                <span className="truncate font-medium">{item.name}</span>
+                <span className="truncate text-xs text-kumo-warning">
+                  未配置{label ? ` · ${label}` : ""} · {item.files} 个文件 · 点击配置
+                </span>
+              </span>
+            </button>
+          );
+        })}
       </section>
 
       <section className="flex flex-col gap-1">

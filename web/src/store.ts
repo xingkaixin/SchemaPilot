@@ -20,6 +20,8 @@ interface State extends Persisted {
   storageKey?: string;
   /** Revision of the arrangement file this state was read from or last saved as. */
   arrangementRevision?: string;
+  /** Connections whose configured driver the user accepted over the arranged one. */
+  acceptedDrivers: string[];
   workspace?: Workspace;
   selectedConnection?: string;
   selectedFile?: string;
@@ -39,6 +41,7 @@ interface State extends Persisted {
   markInterrupted: (connection: string) => void;
   renameConnection: (previous: string, next: string) => void;
   removeConnection: (name: string) => void;
+  acceptDriver: (name: string) => void;
 }
 
 /** Older versions also kept the arrangement here; it seeds a workspace without a file. */
@@ -145,6 +148,7 @@ export const useStore = create<State>()((set, get) => {
     connections: {},
     detached: [],
     checked: [],
+    acceptedDrivers: [],
 
     sync: (workspace) =>
       set((state) => {
@@ -269,6 +273,11 @@ export const useStore = create<State>()((set, get) => {
         };
       }),
 
+    acceptDriver: (name) => {
+      set((state) => ({ acceptedDrivers: [...state.acceptedDrivers, name] }));
+      void saveArrangement();
+    },
+
     removeConnection: (name) =>
       set((state) => {
         const connections = { ...state.connections };
@@ -292,9 +301,11 @@ function toArrangement(state: State): Arrangement {
   const connections: Arrangement["connections"] = {};
   for (const [name, value] of sortedEntries(state.connections)) {
     if (value.steps.length === 0 && value.disabled.length === 0) continue;
-    const driver =
-      workspace.connections.find((connection) => connection.name === name)?.driver ??
-      workspace.arrangement?.connections[name]?.driver;
+    // Keep the driver the files were arranged for until the user accepts a
+    // differently configured one; a new arrangement takes the configured one.
+    const configured = workspace.connections.find((connection) => connection.name === name)?.driver;
+    const arranged = workspace.arrangement?.connections[name]?.driver;
+    const driver = state.acceptedDrivers.includes(name) ? configured : (arranged ?? configured);
     connections[name] = { driver, steps: value.steps, disabled: value.disabled };
   }
   return { version: 1, connections, detached: state.detached };

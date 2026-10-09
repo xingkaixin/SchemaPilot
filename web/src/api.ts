@@ -159,6 +159,17 @@ export const api = {
     request<void>(`/api/connections/${encodeURIComponent(name)}`, { method: "DELETE" }),
   testConnection: (connection: Connection) =>
     request<TestResult>("/api/connections/test", json("POST", connection)),
+  exportPackage: async (connections: string[]) => {
+    const query = new URLSearchParams(connections.map((name) => ["connection", name]));
+    const response = await fetch(`/api/package?${query.toString()}`);
+    if (!response.ok) {
+      const body = await response.json().catch(() => null);
+      throw new ApiError(body?.error ?? `导出失败（${response.status}）`, response.status);
+    }
+    const disposition = response.headers.get("Content-Disposition") ?? "";
+    const name = /filename="?([^";]+)"?/.exec(disposition)?.[1] ?? "schemapilot.zip";
+    return { blob: await response.blob(), name };
+  },
   saveArrangement: (arrangement: Arrangement, baseRevision: string) =>
     request<{ revision: string }>("/api/arrangement", json("PUT", { baseRevision, arrangement })),
   file: (path: string, driver?: Driver) =>
