@@ -267,7 +267,8 @@ function StepRow({
           <GitForkIcon size={14} />
           并行 {step.length} 路 · 全部完成后{last ? "结束" : `进入第 ${index + 2} 步`}
         </div>
-        <div className="flex gap-2 overflow-x-auto">
+        {/* The padding keeps the 2px rings of running or failed cards inside the scroll box. */}
+        <div className="-m-1 flex gap-2 overflow-x-auto p-1">
           {step.map((lane, laneIndex) => (
             <div key={lane.join("|")} className="flex min-w-[220px] flex-1 flex-col">
               {dragging && <LaneGap id={`lane:${index}:${laneIndex}:0`} dragging />}
