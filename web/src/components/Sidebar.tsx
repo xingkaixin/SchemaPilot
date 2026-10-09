@@ -7,7 +7,7 @@ import {
   UploadSimpleIcon,
   XCircleIcon,
 } from "@phosphor-icons/react";
-import type { Connection, Workspace } from "../api";
+import type { Connection, DriverInfo, Workspace } from "../api";
 import { allPaths } from "../lib/arrangement";
 import { fileName, type ConnectionState } from "../lib/model";
 import { useStore } from "../store";
@@ -62,7 +62,7 @@ export function Sidebar({ workspace }: { workspace: Workspace }) {
               key={connection.name}
               connection={connection}
               state={connections[connection.name]}
-              label={workspace.drivers.find((driver) => driver.id === connection.driver)?.label}
+              driver={workspace.drivers.find((driver) => driver.id === connection.driver)}
             />
           ))
         )}
@@ -165,18 +165,18 @@ export function Sidebar({ workspace }: { workspace: Workspace }) {
 function ConnectionItem({
   connection,
   state,
-  label,
+  driver,
 }: {
   connection: Connection;
   state?: ConnectionState;
-  label?: string;
+  driver?: DriverInfo;
 }) {
   const selected = useStore((store) => store.selectedConnection === connection.name);
   const select = useStore((store) => store.select);
   const count = state ? allPaths(state.steps).length : 0;
   const status = state?.lastRun?.status;
 
-  let subtitle = `${label ?? connection.driver} · ${count} 个文件`;
+  let subtitle = `${driver?.label ?? connection.driver} · ${count} 个文件`;
   let indicator = <span className="size-2 rounded-full bg-kumo-interact" />;
   if (status === "running") {
     subtitle = "运行中";
@@ -204,7 +204,7 @@ function ConnectionItem({
       <span
         className={cn(
           "flex size-7 shrink-0 items-center justify-center rounded-md",
-          driverTone(connection.driver),
+          driverTone(driver),
         )}
       >
         <DatabaseIcon size={16} />

@@ -5,6 +5,8 @@ export interface DriverInfo {
   label: string;
   defaultPort: number;
   file?: boolean;
+  /** Set when the database speaks another driver's protocol. */
+  protocol?: Driver;
 }
 
 export interface Connection {

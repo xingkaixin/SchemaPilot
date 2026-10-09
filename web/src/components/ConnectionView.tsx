@@ -92,9 +92,7 @@ export function ConnectionView({
         <div className="flex min-w-0 flex-col gap-1">
           <div className="flex items-center gap-2">
             <h1 className="m-0 text-xl font-semibold">{name}</h1>
-            <Badge variant={driverBadge(connection.driver)}>
-              {driver?.label ?? connection.driver}
-            </Badge>
+            <Badge variant={driverBadge(driver)}>{driver?.label ?? connection.driver}</Badge>
           </div>
           <span className="truncate font-mono text-sm text-kumo-subtle">{address}</span>
         </div>

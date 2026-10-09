@@ -11,7 +11,7 @@ import {
 } from "@cloudflare/kumo";
 import { CheckCircleIcon, DatabaseIcon, XCircleIcon, XIcon } from "@phosphor-icons/react";
 import { useQueryClient } from "@tanstack/react-query";
-import { api, type Connection, type TestResult, type Workspace } from "../api";
+import { api, type Connection, type DriverInfo, type TestResult, type Workspace } from "../api";
 import { useStore } from "../store";
 import { notifyError } from "../toasts";
 import { useUi } from "../ui";
@@ -184,14 +184,14 @@ function ConnectionForm({
           }
           renderValue={(value) => (
             <DriverOption
-              id={String(value)}
-              label={workspace.drivers.find((item) => item.id === value)?.label}
+              driver={workspace.drivers.find((item) => item.id === value)}
+              drivers={workspace.drivers}
             />
           )}
         >
           {workspace.drivers.map((item) => (
             <Select.Option key={item.id} value={item.id}>
-              <DriverOption id={item.id} label={item.label} />
+              <DriverOption driver={item} drivers={workspace.drivers} />
             </Select.Option>
           ))}
         </Select>
@@ -258,7 +258,7 @@ function ConnectionForm({
             <Input
               label="连接参数"
               className="w-full min-w-0 font-mono"
-              placeholder={driverParamsExample(draft.driver)}
+              placeholder={driverParamsExample(driver)}
               value={draft.params}
               onChange={(event) => change({ params: event.target.value })}
               description="以 key=value 形式追加到连接串，多个参数用 & 连接"
@@ -326,13 +326,17 @@ function ConnectionForm({
   );
 }
 
-function DriverOption({ id, label }: { id: string; label?: string }) {
+function DriverOption({ driver, drivers }: { driver?: DriverInfo; drivers: DriverInfo[] }) {
+  const protocol = drivers.find((item) => item.id === driver?.protocol);
   return (
     <span className="flex items-center gap-2.5">
-      <span className={cn("flex size-5 items-center justify-center rounded-[5px]", driverTone(id))}>
+      <span
+        className={cn("flex size-5 items-center justify-center rounded-[5px]", driverTone(driver))}
+      >
         <DatabaseIcon size={12} weight="bold" />
       </span>
-      {label ?? id}
+      {driver?.label}
+      {protocol && <span className="text-xs text-kumo-subtle">兼容 {protocol.label}</span>}
     </span>
   );
 }

@@ -1,7 +1,8 @@
-const styles: Record<
-  string,
-  { badge: "blue" | "teal" | "purple" | "red" | "orange"; tile: string; params: string }
-> = {
+import type { DriverInfo } from "../api";
+
+type Style = { badge: "blue" | "teal" | "purple" | "red" | "orange"; tile: string; params: string };
+
+const styles: Record<string, Style> = {
   postgres: {
     badge: "blue",
     tile: "bg-kumo-badge-blue/12 text-kumo-link",
@@ -29,14 +30,20 @@ const styles: Record<
   },
 };
 
-export function driverTone(driver: string) {
-  return styles[driver]?.tile ?? "bg-kumo-tint text-kumo-subtle";
+// Compatible databases take the look of the protocol they speak.
+function styleOf(driver?: DriverInfo): Style | undefined {
+  if (!driver) return undefined;
+  return styles[driver.id] ?? styles[driver.protocol ?? ""];
 }
 
-export function driverBadge(driver: string) {
-  return styles[driver]?.badge ?? "blue";
+export function driverTone(driver?: DriverInfo) {
+  return styleOf(driver)?.tile ?? "bg-kumo-tint text-kumo-subtle";
 }
 
-export function driverParamsExample(driver: string) {
-  return styles[driver]?.params ?? "";
+export function driverBadge(driver?: DriverInfo) {
+  return styleOf(driver)?.badge ?? "blue";
+}
+
+export function driverParamsExample(driver?: DriverInfo) {
+  return styleOf(driver)?.params ?? "";
 }
