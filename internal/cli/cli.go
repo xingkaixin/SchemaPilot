@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"os"
 	"syscall"
 	"time"
 
@@ -53,6 +54,10 @@ sub-directory named after a connection are assigned to that connection.`, config
 			}
 			files, err := workspace.Open(dir)
 			if err != nil {
+				return err
+			}
+			// Relative SQLite paths in the config are relative to the workspace.
+			if err := os.Chdir(files.Root); err != nil {
 				return err
 			}
 			listener, err := listenWithFallback(listen, !command.Flags().Changed("listen"))

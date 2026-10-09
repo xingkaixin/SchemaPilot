@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/schemapilot/schemapilot/internal/config"
@@ -21,6 +22,8 @@ type Info struct {
 	ID          config.Driver `json:"id"`
 	Label       string        `json:"label"`
 	DefaultPort int           `json:"defaultPort"`
+	// File drivers take a database file path instead of a server address.
+	File bool `json:"file,omitempty"`
 }
 
 type driver interface {
@@ -33,7 +36,13 @@ type driver interface {
 	describe(err error) (ErrorInfo, bool)
 }
 
-var drivers = []driver{postgresDriver{}, mysqlDriver{}}
+var drivers = []driver{
+	postgresDriver{},
+	mysqlDriver{},
+	sqlServerDriver{},
+	oracleDriver{},
+	sqliteDriver{sessions: &atomic.Int64{}},
+}
 
 func Drivers() []Info {
 	infos := make([]Info, 0, len(drivers))

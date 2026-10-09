@@ -16,14 +16,17 @@ const FileName = "schemapilot.toml"
 type Driver string
 
 const (
-	Postgres Driver = "postgres"
-	MySQL    Driver = "mysql"
+	Postgres  Driver = "postgres"
+	MySQL     Driver = "mysql"
+	SQLServer Driver = "sqlserver"
+	Oracle    Driver = "oracle"
+	SQLite    Driver = "sqlite"
 )
 
 type Connection struct {
 	Name     string            `toml:"-" json:"name"`
 	Driver   Driver            `toml:"driver" json:"driver"`
-	Host     string            `toml:"host" json:"host"`
+	Host     string            `toml:"host,omitempty" json:"host"`
 	Port     int               `toml:"port,omitempty" json:"port,omitempty"`
 	Database string            `toml:"database,omitempty" json:"database"`
 	User     string            `toml:"user,omitempty" json:"user"`
@@ -47,12 +50,16 @@ func (connection Connection) Validate() error {
 		return fmt.Errorf("连接名称 %q 只能包含字母、数字、点、下划线和连字符，且以字母或数字开头", connection.Name)
 	}
 	switch connection.Driver {
-	case Postgres, MySQL:
+	case Postgres, MySQL, SQLServer, Oracle:
+		if connection.Host == "" {
+			return errors.New("主机不能为空")
+		}
+	case SQLite:
+		if connection.Database == "" {
+			return errors.New("数据库文件不能为空")
+		}
 	default:
 		return fmt.Errorf("不支持的数据库类型 %q", connection.Driver)
-	}
-	if connection.Host == "" {
-		return errors.New("主机不能为空")
 	}
 	if connection.Port < 0 || connection.Port > 65535 {
 		return fmt.Errorf("端口 %d 无效", connection.Port)
