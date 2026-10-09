@@ -23,7 +23,7 @@ import {
   moveFile,
   parallelWithPrevious,
   pathsAfter,
-  serial,
+  arrangeByName,
   shift,
   type DropTarget,
   type Step,
@@ -110,7 +110,7 @@ export function Pipeline({
             variant="ghost"
             icon={SortAscendingIcon}
             disabled={locked || paths.length < 2}
-            onClick={() => arrange(name, (current) => serial(allPaths(current)))}
+            onClick={() => arrange(name, (current) => arrangeByName(allPaths(current)))}
           >
             按文件名重排
           </Button>

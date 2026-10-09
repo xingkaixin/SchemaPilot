@@ -11,8 +11,38 @@ export function comparePaths(a: string, b: string) {
   return a.localeCompare(b, undefined, { numeric: true });
 }
 
-export function serial(paths: string[]): Step[] {
-  return [...paths].sort(comparePaths).map((path) => [[path]]);
+const branchName = /^(\d+)_(\d+)_/;
+
+/**
+ * Orders files by name, one step each. Files named {step}_{branch}_*.sql
+ * that share a directory and step number form one step instead: a lane per
+ * branch number, each lane running its files in name order.
+ */
+export function arrangeByName(paths: string[]): Step[] {
+  const order: (string | Map<number, Lane>)[] = [];
+  const groups = new Map<string, Map<number, Lane>>();
+  for (const path of [...paths].sort(comparePaths)) {
+    const slash = path.lastIndexOf("/") + 1;
+    const match = branchName.exec(path.slice(slash));
+    if (!match) {
+      order.push(path);
+      continue;
+    }
+    const key = path.slice(0, slash) + Number(match[1]);
+    let lanes = groups.get(key);
+    if (!lanes) {
+      lanes = new Map();
+      groups.set(key, lanes);
+      order.push(lanes);
+    }
+    const branch = Number(match[2]);
+    lanes.set(branch, [...(lanes.get(branch) ?? []), path]);
+  }
+  return order.map((item) =>
+    typeof item === "string"
+      ? [[item]]
+      : [...item.entries()].sort(([a], [b]) => a - b).map(([, lane]) => lane),
+  );
 }
 
 export function allPaths(steps: Step[]): string[] {

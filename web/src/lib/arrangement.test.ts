@@ -4,7 +4,7 @@ import {
   moveFile,
   parallelWithPrevious,
   pathsAfter,
-  serial,
+  arrangeByName,
   shift,
   type Step,
 } from "./arrangement";
@@ -73,10 +73,31 @@ describe("menu operations", () => {
   });
 
   it("builds a serial order by natural path order", () => {
-    expect(serial(["10_x.sql", "2_y.sql", "1_z.sql"])).toEqual([
+    expect(arrangeByName(["10_x.sql", "2_y.sql", "1_z.sql"])).toEqual([
       [["1_z.sql"]],
       [["2_y.sql"]],
       [["10_x.sql"]],
+    ]);
+  });
+
+  it("groups {step}_{branch}_ files into parallel lanes", () => {
+    expect(
+      arrangeByName([
+        "pg/030_2_products.sql",
+        "pg/030_1_orders.sql",
+        "pg/030_customers.sql",
+        "pg/030_1_items.sql",
+        "pg/040_done.sql",
+        "pg/10_1_a.sql",
+        "pg/010_2_b.sql",
+        "other/030_1_x.sql",
+      ]),
+    ).toEqual([
+      [["other/030_1_x.sql"]],
+      [["pg/10_1_a.sql"], ["pg/010_2_b.sql"]],
+      [["pg/030_1_items.sql", "pg/030_1_orders.sql"], ["pg/030_2_products.sql"]],
+      [["pg/030_customers.sql"]],
+      [["pg/040_done.sql"]],
     ]);
   });
 });

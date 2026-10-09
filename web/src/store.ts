@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import type { Run, Workspace } from "./api";
-import { allPaths, normalize, removeFiles, serial, type Step } from "./lib/arrangement";
+import { allPaths, normalize, arrangeByName, removeFiles, type Step } from "./lib/arrangement";
 import { emptyConnection, type ConnectionState, type RunMode } from "./lib/model";
 
 interface Persisted {
@@ -68,7 +68,7 @@ function reconcile(state: Persisted, workspace: Workspace): Persisted {
     if (fresh.length > 0) {
       connections[name] = {
         ...connections[name],
-        steps: [...connections[name].steps, ...serial(fresh)],
+        steps: [...connections[name].steps, ...arrangeByName(fresh)],
       };
     }
   }
@@ -141,7 +141,7 @@ export const useStore = create<State>()((set, get) => {
           connections[name] = without(value, paths);
         }
         const target = connections[connection] ?? emptyConnection();
-        connections[connection] = { ...target, steps: [...target.steps, ...serial(paths)] };
+        connections[connection] = { ...target, steps: [...target.steps, ...arrangeByName(paths)] };
         return {
           connections,
           detached: state.detached.filter((path) => !paths.includes(path)),
