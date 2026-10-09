@@ -31,7 +31,8 @@ type Server struct {
 	// stops DNS-rebinding pages from driving a locally bound server.
 	loopbackOnly bool
 
-	configMu sync.Mutex
+	configMu      sync.Mutex
+	arrangementMu sync.Mutex
 }
 
 func New(files workspace.Workspace, runs *runner.Manager, assets fs.FS, logger *slog.Logger, loopbackOnly bool) *Server {
@@ -44,6 +45,7 @@ func (server *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/connections", server.saveConnection)
 	mux.HandleFunc("DELETE /api/connections/{name}", server.deleteConnection)
 	mux.HandleFunc("POST /api/connections/test", server.testConnection)
+	mux.HandleFunc("PUT /api/arrangement", server.saveArrangement)
 	mux.HandleFunc("GET /api/file", server.getFile)
 	mux.HandleFunc("POST /api/files", server.importFiles)
 	mux.HandleFunc("POST /api/runs", server.startRun)

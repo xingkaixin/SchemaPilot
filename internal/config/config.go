@@ -78,8 +78,12 @@ type document struct {
 // Names double as directory names, so they must be safe path segments.
 var namePattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$`)
 
+func ValidName(name string) bool {
+	return namePattern.MatchString(name)
+}
+
 func (connection Connection) Validate() error {
-	if !namePattern.MatchString(connection.Name) {
+	if !ValidName(connection.Name) {
 		return fmt.Errorf("连接名称 %q 只能包含字母、数字、点、下划线和连字符，且以字母或数字开头", connection.Name)
 	}
 	switch {

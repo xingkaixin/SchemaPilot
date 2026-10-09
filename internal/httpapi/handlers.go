@@ -8,6 +8,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/schemapilot/schemapilot/internal/arrangement"
 	"github.com/schemapilot/schemapilot/internal/config"
 	"github.com/schemapilot/schemapilot/internal/database"
 	"github.com/schemapilot/schemapilot/internal/runner"
@@ -34,6 +35,11 @@ type workspaceResponse struct {
 	Drivers      []database.Info     `json:"drivers"`
 	Connections  []config.Connection `json:"connections"`
 	Files        []workspaceFile     `json:"files"`
+
+	Arrangement         *arrangement.Arrangement `json:"arrangement"`
+	ArrangementFile     string                   `json:"arrangementFile"`
+	ArrangementRevision string                   `json:"arrangementRevision"`
+	ArrangementError    string                   `json:"arrangementError,omitempty"`
 }
 
 func (server *Server) getWorkspace(response http.ResponseWriter, _ *http.Request) {
@@ -49,7 +55,29 @@ func (server *Server) getWorkspace(response http.ResponseWriter, _ *http.Request
 	if loadErr != nil {
 		result.ConfigError = loadErr.Error()
 	}
-	files, err := server.workspace.Scan(loaded.Names())
+	arranged, revision, arrangementErr := arrangement.Load(server.workspace.Root)
+	result.Arrangement = arranged
+	result.ArrangementFile = arrangement.FileName
+	result.ArrangementRevision = revision
+	if arrangementErr != nil {
+		result.ArrangementError = arrangementErr.Error()
+	}
+	// Connections that are arranged but not configured here still own
+	// their directory, so a workspace unpacked elsewhere shows its files.
+	drivers := map[string]config.Driver{}
+	if arranged != nil {
+		for name, connection := range arranged.Connections {
+			drivers[name] = connection.Driver
+		}
+	}
+	for _, connection := range loaded.Connections {
+		drivers[connection.Name] = connection.Driver
+	}
+	names := make([]string, 0, len(drivers))
+	for name := range drivers {
+		names = append(names, name)
+	}
+	files, err := server.workspace.Scan(names)
 	if err != nil {
 		writeError(response, http.StatusInternalServerError, err.Error())
 		return
@@ -58,14 +86,45 @@ func (server *Server) getWorkspace(response http.ResponseWriter, _ *http.Request
 		entry := workspaceFile{File: file}
 		if file.Size <= maxCountedFileBytes {
 			if content, err := server.workspace.Read(file.Path); err == nil {
-				driver, _ := loaded.Find(file.Connection)
-				count := len(sqlscript.Split(string(content), database.Dialect(driver.Driver)))
+				count := len(sqlscript.Split(string(content), database.Dialect(drivers[file.Connection])))
 				entry.Statements = &count
 			}
 		}
 		result.Files = append(result.Files, entry)
 	}
 	writeJSON(response, http.StatusOK, result)
+}
+
+type saveArrangementRequest struct {
+	// BaseRevision is the revision the client edited; a different one on
+	// disk means someone else changed the file in the meantime.
+	BaseRevision string                  `json:"baseRevision"`
+	Arrangement  arrangement.Arrangement `json:"arrangement"`
+}
+
+func (server *Server) saveArrangement(response http.ResponseWriter, request *http.Request) {
+	var body saveArrangementRequest
+	if err := readJSON(response, request, &body); err != nil {
+		writeError(response, http.StatusBadRequest, err.Error())
+		return
+	}
+	server.arrangementMu.Lock()
+	defer server.arrangementMu.Unlock()
+	_, current, err := arrangement.Load(server.workspace.Root)
+	if err != nil {
+		writeError(response, http.StatusConflict, err.Error())
+		return
+	}
+	if current != body.BaseRevision {
+		writeError(response, http.StatusConflict, arrangement.FileName+" 已在别处修改")
+		return
+	}
+	revision, err := arrangement.Save(server.workspace.Root, body.Arrangement)
+	if err != nil {
+		writeError(response, http.StatusBadRequest, err.Error())
+		return
+	}
+	writeJSON(response, http.StatusOK, map[string]string{"revision": revision})
 }
 
 type saveConnectionRequest struct {
