@@ -87,3 +87,33 @@ func TestSplitWithoutTrailingDelimiter(t *testing.T) {
 		{"CREATE TABLE b (id int)", 2, 2},
 	})
 }
+
+func TestSplitSQLServerBatchesAndBlocks(t *testing.T) {
+	source := "CREATE TABLE [a;b] (id int);\nGO\nCREATE OR ALTER PROCEDURE p AS\n  SELECT 1;\n  SELECT 2;\ngo\nIF 1 = 1\nBEGIN\n  BEGIN TRAN;\n  UPDATE t SET v = CASE WHEN v > 0 THEN 1 END;\n  COMMIT;\nEND;\nSELECT N'x;y'\n"
+	check(t, source, SQLServer, []want{
+		{"CREATE TABLE [a;b] (id int)", 1, 1},
+		{"CREATE OR ALTER PROCEDURE p AS\n  SELECT 1;\n  SELECT 2;", 3, 5},
+		{"IF 1 = 1\nBEGIN\n  BEGIN TRAN;\n  UPDATE t SET v = CASE WHEN v > 0 THEN 1 END;\n  COMMIT;\nEND", 7, 12},
+		{"SELECT N'x;y'", 13, 13},
+	})
+}
+
+func TestSplitOraclePLSQLUnits(t *testing.T) {
+	source := "CREATE TABLE t (v VARCHAR2(10));\nINSERT INTO t VALUES (q'[it's;]');\nCREATE OR REPLACE PROCEDURE p IS\nBEGIN\n  UPDATE t SET v = 'x';\nEND;\n/\nBEGIN\n  p;\nEND;\n/\nSELECT 4 / 2 FROM dual;\n"
+	check(t, source, Oracle, []want{
+		{"CREATE TABLE t (v VARCHAR2(10))", 1, 1},
+		{"INSERT INTO t VALUES (q'[it's;]')", 2, 2},
+		{"CREATE OR REPLACE PROCEDURE p IS\nBEGIN\n  UPDATE t SET v = 'x';\nEND;", 3, 6},
+		{"BEGIN\n  p;\nEND;", 8, 10},
+		{"SELECT 4 / 2 FROM dual", 12, 12},
+	})
+}
+
+func TestSplitSQLiteTriggerBody(t *testing.T) {
+	source := "BEGIN;\nCREATE TEMP TRIGGER tr AFTER INSERT ON t BEGIN\n  UPDATE t SET v = CASE WHEN v IS NULL THEN 0 END;\n  INSERT INTO log VALUES (1);\nEND;\nCOMMIT;\n"
+	check(t, source, SQLite, []want{
+		{"BEGIN", 1, 1},
+		{"CREATE TEMP TRIGGER tr AFTER INSERT ON t BEGIN\n  UPDATE t SET v = CASE WHEN v IS NULL THEN 0 END;\n  INSERT INTO log VALUES (1);\nEND", 2, 5},
+		{"COMMIT", 6, 6},
+	})
+}

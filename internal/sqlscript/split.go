@@ -1,6 +1,7 @@
 package sqlscript
 
 import (
+	"slices"
 	"strings"
 )
 
@@ -9,6 +10,9 @@ type Dialect int
 const (
 	Postgres Dialect = iota
 	MySQL
+	SQLServer
+	Oracle
+	SQLite
 )
 
 type Statement struct {
@@ -20,8 +24,9 @@ type Statement struct {
 
 // Split cuts a script into executable statements. Comments and whitespace
 // between statements are dropped; a region holding only comments is not a
-// statement. MySQL scripts may switch delimiters with the client-side
-// DELIMITER command, the way the mysql CLI does.
+// statement. Client-side conventions of each dialect's own CLI apply: MySQL
+// scripts may switch delimiters with DELIMITER, SQL Server scripts may end a
+// batch with GO, and Oracle scripts end PL/SQL units with a lone slash.
 func Split(source string, dialect Dialect) []Statement {
 	scanner := &splitter{source: source, dialect: dialect, delimiter: ";", line: 1}
 	scanner.run()
@@ -41,6 +46,16 @@ type splitter struct {
 	codeLine  int
 	codeEnd   int
 	endLine   int
+
+	// words holds the leading keywords of the current statement.
+	words []string
+	// block statements run until a separator line; the delimiter inside
+	// them belongs to the body (PL/SQL units, T-SQL routines).
+	block bool
+	// nested statements count BEGIN/CASE … END so that delimiters inside
+	// a compound body do not end them.
+	nested bool
+	depth  int
 }
 
 func (scanner *splitter) run() {
@@ -49,7 +64,16 @@ func (scanner *splitter) run() {
 		if scanner.dialect == MySQL && scanner.codeStart < 0 && scanner.atLineStart() && scanner.tryDelimiterCommand() {
 			continue
 		}
+		if scanner.trySeparatorLine() {
+			continue
+		}
 		if strings.HasPrefix(scanner.source[scanner.pos:], scanner.delimiter) {
+			if scanner.block || scanner.depth > 0 {
+				start, line := scanner.pos, scanner.line
+				scanner.pos += len(scanner.delimiter)
+				scanner.markCode(start, line)
+				continue
+			}
 			scanner.flush()
 			scanner.pos += len(scanner.delimiter)
 			continue
@@ -74,8 +98,11 @@ func (scanner *splitter) run() {
 			}
 		default:
 			start, line := scanner.pos, scanner.line
-			scanner.skipToken()
+			word := scanner.skipToken()
 			scanner.markCode(start, line)
+			if word != "" {
+				scanner.keyword(word)
+			}
 		}
 	}
 	scanner.flush()
@@ -86,6 +113,10 @@ func (scanner *splitter) resetStatement() {
 	scanner.codeLine = 0
 	scanner.codeEnd = 0
 	scanner.endLine = 0
+	scanner.words = scanner.words[:0]
+	scanner.block = false
+	scanner.nested = scanner.dialect == SQLServer
+	scanner.depth = 0
 }
 
 func (scanner *splitter) markCode(start, line int) {
@@ -155,6 +186,110 @@ func (scanner *splitter) tryDelimiterCommand() bool {
 	return true
 }
 
+// trySeparatorLine handles a line holding only the client-side batch
+// separator: GO for SQL Server, a slash for Oracle.
+func (scanner *splitter) trySeparatorLine() bool {
+	var separator string
+	switch scanner.dialect {
+	case SQLServer:
+		separator = "go"
+	case Oracle:
+		separator = "/"
+	default:
+		return false
+	}
+	rest := scanner.source[scanner.pos:]
+	if len(rest) < len(separator) || !strings.EqualFold(rest[:len(separator)], separator) || !scanner.atLineStart() {
+		return false
+	}
+	lineEnd := strings.IndexByte(rest, '\n')
+	if lineEnd < 0 {
+		lineEnd = len(rest)
+	}
+	if strings.TrimSpace(rest[len(separator):lineEnd]) != "" {
+		return false
+	}
+	scanner.flush()
+	scanner.pos += lineEnd
+	return true
+}
+
+func (scanner *splitter) keyword(word string) {
+	if len(scanner.words) < 6 {
+		scanner.words = append(scanner.words, word)
+		scanner.classify()
+	}
+	if !scanner.nested {
+		return
+	}
+	switch word {
+	case "BEGIN":
+		if !scanner.beginsTransaction() {
+			scanner.depth++
+		}
+	case "CASE":
+		scanner.depth++
+	case "END":
+		if scanner.depth > 0 {
+			scanner.depth--
+		}
+	}
+}
+
+func (scanner *splitter) classify() {
+	words := scanner.words
+	switch scanner.dialect {
+	case Oracle:
+		if words[0] == "DECLARE" || words[0] == "BEGIN" {
+			scanner.block = true
+		}
+		switch createdObject(words, []string{"CREATE"}, "OR", "REPLACE", "EDITIONABLE", "NONEDITIONABLE") {
+		case "PROCEDURE", "FUNCTION", "PACKAGE", "TRIGGER", "TYPE":
+			scanner.block = true
+		}
+	case SQLServer:
+		switch createdObject(words, []string{"CREATE", "ALTER"}, "OR", "ALTER") {
+		case "PROC", "PROCEDURE", "FUNCTION", "TRIGGER":
+			scanner.block = true
+		}
+	case SQLite:
+		if createdObject(words, []string{"CREATE"}, "TEMP", "TEMPORARY") == "TRIGGER" {
+			scanner.nested = true
+		}
+	}
+}
+
+// createdObject returns the object type of a statement that starts with
+// one of verbs, skipping modifiers such as OR REPLACE.
+func createdObject(words []string, verbs []string, modifiers ...string) string {
+	if !slices.Contains(verbs, words[0]) {
+		return ""
+	}
+	for _, word := range words[1:] {
+		if !slices.Contains(modifiers, word) {
+			return word
+		}
+	}
+	return ""
+}
+
+// beginsTransaction tells BEGIN TRAN and friends apart from a T-SQL block.
+func (scanner *splitter) beginsTransaction() bool {
+	if scanner.dialect != SQLServer {
+		return false
+	}
+	rest := strings.TrimLeft(scanner.source[scanner.pos:], " \t\r\n")
+	end := 0
+	for end < len(rest) && isLetter(rest[end]) {
+		end++
+	}
+	switch strings.ToUpper(rest[:end]) {
+	case "TRAN", "TRANSACTION", "DISTRIBUTED", "DIALOG", "CONVERSATION":
+		return true
+	}
+	return false
+}
+
 func (scanner *splitter) dashCommentAllowed() bool {
 	if scanner.dialect != MySQL {
 		return true
@@ -177,7 +312,7 @@ func (scanner *splitter) skipBlockComment() {
 	depth := 0
 	for scanner.pos < len(scanner.source) {
 		if scanner.source[scanner.pos] == '/' && scanner.peek(1) == '*' {
-			if depth == 0 || scanner.dialect == Postgres {
+			if depth == 0 || scanner.dialect == Postgres || scanner.dialect == SQLServer {
 				depth++
 			}
 			scanner.pos += 2
@@ -202,31 +337,71 @@ func (scanner *splitter) advance() {
 	scanner.pos++
 }
 
-// skipToken consumes one quoted literal, dollar-quoted body or plain
-// character so that delimiters inside literals are never matched.
-func (scanner *splitter) skipToken() {
+// skipToken consumes one quoted literal, dollar-quoted body, keyword or
+// plain character so that delimiters inside literals are never matched. It
+// returns the upper-cased word when the dialect tracks keywords.
+func (scanner *splitter) skipToken() string {
 	char := scanner.source[scanner.pos]
+	wordStart := scanner.pos == 0 || !isIdentifierByte(scanner.source[scanner.pos-1])
 	switch {
 	case char == '\'':
 		scanner.skipQuoted('\'', scanner.backslashEscapes())
 	case char == '"':
 		scanner.skipQuoted('"', scanner.dialect == MySQL)
-	case char == '`' && scanner.dialect == MySQL:
+	case char == '`' && (scanner.dialect == MySQL || scanner.dialect == SQLite):
 		scanner.skipQuoted('`', false)
+	case char == '[' && (scanner.dialect == SQLServer || scanner.dialect == SQLite):
+		scanner.skipQuoted(']', false)
 	case char == '$' && scanner.dialect == Postgres:
 		if tag, ok := scanner.dollarTag(); ok {
 			scanner.skipDollarQuoted(tag)
-			return
+			return ""
 		}
 		scanner.pos++
+	case (char == 'q' || char == 'Q') && scanner.dialect == Oracle && wordStart && scanner.peek(1) == '\'' && scanner.peek(2) != 0:
+		scanner.skipAlternativeQuoted()
+	case isLetter(char) && wordStart && scanner.dialect != Postgres && scanner.dialect != MySQL:
+		start := scanner.pos
+		for scanner.pos < len(scanner.source) && isIdentifierByte(scanner.source[scanner.pos]) {
+			scanner.pos++
+		}
+		return strings.ToUpper(scanner.source[start:scanner.pos])
 	default:
 		scanner.pos++
+	}
+	return ""
+}
+
+// skipAlternativeQuoted consumes an Oracle q'[...]' literal, which ends at
+// the closing counterpart of its opening character followed by a quote.
+func (scanner *splitter) skipAlternativeQuoted() {
+	closing := scanner.peek(2)
+	switch closing {
+	case '[':
+		closing = ']'
+	case '(':
+		closing = ')'
+	case '{':
+		closing = '}'
+	case '<':
+		closing = '>'
+	}
+	scanner.pos += 3
+	for scanner.pos < len(scanner.source) {
+		if scanner.source[scanner.pos] == closing && scanner.peek(1) == '\'' {
+			scanner.pos += 2
+			return
+		}
+		scanner.advance()
 	}
 }
 
 func (scanner *splitter) backslashEscapes() bool {
 	if scanner.dialect == MySQL {
 		return true
+	}
+	if scanner.dialect != Postgres {
+		return false
 	}
 	// PostgreSQL E'...' strings accept backslash escapes.
 	if scanner.pos == 0 {
