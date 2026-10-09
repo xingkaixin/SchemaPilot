@@ -24,3 +24,6 @@ web/.vite/
 .DS_Store
 .idea/
 .vscode/
+
+# local SQL playground
+playground/
