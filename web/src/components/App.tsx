@@ -42,7 +42,7 @@ export function App() {
 
   const connection = workspace.connections.find((item) => item.name === selected);
   return (
-    <div className="flex min-h-dvh flex-col">
+    <div className="isolate flex min-h-dvh flex-col">
       <Header
         workspace={workspace}
         refreshing={query.isFetching}
