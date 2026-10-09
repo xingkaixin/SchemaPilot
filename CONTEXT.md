@@ -35,5 +35,9 @@ An arranged file that no longer exists on disk. It keeps its place and blocks ru
 One execution of a plan built from an arrangement: all enabled files, or, when continuing, the ones that have not succeeded.
 _Avoid_: Job, attempt
 
+**Package**:
+A .zip exported from one workspace holding chosen connections' arrangements, the files they arrange and a manifest with checksums, but no connection details. Starting SchemaPilot with it unpacks it into the current workspace.
+_Avoid_: Bundle, release
+
 **Statement**:
 One executable unit split out of a file. Statements commit individually, so a failed file may have committed its earlier statements.

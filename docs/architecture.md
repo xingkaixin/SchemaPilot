@@ -6,6 +6,7 @@ browser (React + Kumo)                       schemapilot (Go)
   polling ───────────────── HTTP API ── workspace:   scan dir, read/import .sql
                                      ── config:      schemapilot.toml
                                      ── arrangement: schemapilot.arrangement.json
+                                     ── bundle:      export/import packages (.zip)
                                      ── runner:    steps → lanes → files → statements
                                                      └─ database: postgres / mysql / sqlserver / oracle / sqlite / opengauss / dm / xugu drivers
                                                      └─ sqlscript: split files into statements
@@ -17,6 +18,7 @@ browser (React + Kumo)                       schemapilot (Go)
 - **The browser owns the history.** The last result of every file lives in localStorage, keyed by the working directory.
 - **The server owns the directory, the config file and the live run.** `GET /api/workspace` lists connections and files; files under `./<connection>/` carry that connection name so the browser can assign them. Saving a connection rewrites `schemapilot.toml`.
 - **A run is a plan the browser sends.** `POST /api/runs` takes `steps[lane][file]` already filtered (disabled files removed; when continuing, succeeded files removed). The runner keeps only the latest run per connection in memory; the browser polls `GET /api/runs/{connection}` and merges each file result into its history.
+- **Packages move arrangements between workspaces.** `GET /api/package` zips the chosen connections' arrangement, every file they arrange and a manifest of sha256 sums; connection details stay behind. `schemapilot pkg.zip` verifies the sums, refuses any file or arrangement that already exists with different content, then unpacks into the working directory, which from then on is an ordinary workspace.
 
 ## Runner
 

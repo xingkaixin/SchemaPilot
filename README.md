@@ -82,6 +82,30 @@ password = '${MYSQL_PASSWORD}'
 - **停止**会在数据库端取消正在运行的语句（PostgreSQL、openGauss 用 `pg_cancel_backend`，MySQL 用 `KILL QUERY`，达梦用 `SP_CANCEL_SESSION_OPERATION`，虚谷用 `DBMS_DBA.KILL_SESSION_TRANS`，SQL Server、Oracle、SQLite 由驱动发送中断），已提交的语句不会回滚。
 - 不支持 psql 元命令、`COPY ... FROM stdin` 以及 PostgreSQL 的 `BEGIN ATOMIC` 函数体。
 
+## 导出执行结果
+
+连接页右上角的“导出结果”可以导出：
+
+- **文本日志（.log）**：logfmt 格式，一行一个事件，带时区的 ISO 8601 时间、级别（INFO / WARN / ERROR）、事件名和 `key=value` 字段，可以直接 grep，也能被 Loki、ELK 等解析。事件包括 `run.start`、`file.start`、`stmt.ok`、`stmt.notice`、`stmt.fail`、`file.end`、`file.skip`、`run.end`。
+- **HTML 报告（.html）**：单个自包含页面，不依赖外网，可以直接发给别人或打印成 PDF。包含总体结论、失败的语句及上下文、按步骤和并行分支画的时间线、每个文件的语句明细、最慢的语句。报告里不含主机名和用户名。
+
+两种导出都以每个文件最后一次执行的结果为准，失败、中途停止都可以导出；还没有任何文件执行过、或正在运行时不能导出。
+
+## 导出包：在另一个环境执行同一套编排
+
+在 A 环境（比如测试环境）编排好之后，点页头的“导出包”，选择连接，下载一个 `.zip`。包里有所选连接的编排和 SQL 文件，以及一份带 sha256 校验和的清单；只记录连接名称和数据库类型，不含地址、账号和密码。
+
+在 B 环境（比如生产环境），进入已经配置好连接的目录，运行：
+
+```bash
+schemapilot release-20261009.zip
+```
+
+- 包里的 SQL 文件和编排会解压到当前目录，然后正常启动控制台。之后在这个目录直接运行 `schemapilot` 即可，编排也可以继续调整。
+- 连接按名称匹配当前目录的 `schemapilot.toml`。没有配置的连接会在左侧标为“未配置”，点击后补充连接信息即可执行。
+- 如果连接配置的数据库类型和编排时不同（兼容同一协议的除外），会阻止运行，需要修正连接或确认以当前类型为准。
+- 当前目录已有同名但内容不同的文件，或同一连接已有不同的编排时，导入会列出冲突并退出，不写入任何内容。内容相同的文件会跳过，所以同一个包可以重复导入。
+
 ## 数据保存在哪里
 
 - 连接信息：`schemapilot.toml`。
