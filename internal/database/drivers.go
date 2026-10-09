@@ -5,12 +5,18 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"maps"
 	"net"
 	"net/url"
+	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"sync/atomic"
 
+	ogpq "gitcode.com/opengauss/openGauss-connector-go-pq"
+	_ "gitee.com/XuguDB/go-xugu-driver"
+	"gitee.com/chunanyong/dm"
 	"github.com/go-sql-driver/mysql"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -32,7 +38,7 @@ func (postgresDriver) info() Info {
 
 func (postgresDriver) dialect() sqlscript.Dialect { return sqlscript.Postgres }
 
-func (postgresDriver) open(connection config.Connection, notices *noticeRouter) (*sql.DB, error) {
+func postgresURL(connection config.Connection) string {
 	query := url.Values{}
 	for key, value := range connection.Params {
 		query.Set(key, value)
@@ -52,7 +58,11 @@ func (postgresDriver) open(connection config.Connection, notices *noticeRouter) 
 	if connection.User != "" {
 		target.User = url.UserPassword(connection.User, connection.Password)
 	}
-	parsed, err := pgx.ParseConfig(target.String())
+	return target.String()
+}
+
+func (postgresDriver) open(connection config.Connection, notices *noticeRouter) (*sql.DB, error) {
+	parsed, err := pgx.ParseConfig(postgresURL(connection))
 	if err != nil {
 		return nil, err
 	}
@@ -228,8 +238,9 @@ func (sqlServerDriver) describe(err error) (ErrorInfo, bool) {
 		return ErrorInfo{}, false
 	}
 	return ErrorInfo{
-		Message: fmt.Sprintf("Msg %d, Level %d, State %d: %s", msErr.Number, msErr.Class, msErr.State, msErr.Message),
-		Code:    strconv.Itoa(int(msErr.Number)),
+		Message:       fmt.Sprintf("Msg %d, Level %d, State %d: %s", msErr.Number, msErr.Class, msErr.State, msErr.Message),
+		Code:          strconv.Itoa(int(msErr.Number)),
+		StatementLine: int(msErr.LineNo),
 	}, true
 }
 
@@ -313,3 +324,201 @@ func (sqliteDriver) version(ctx context.Context, db *sql.DB) (string, error) {
 }
 
 func (sqliteDriver) describe(error) (ErrorInfo, bool) { return ErrorInfo{}, false }
+
+// openGaussDriver uses the openGauss fork of lib/pq, which speaks the
+// SHA256 and SM3 password methods that pgx lacks.
+type openGaussDriver struct{}
+
+func (openGaussDriver) info() Info {
+	return Info{ID: config.OpenGauss, Label: "openGauss", DefaultPort: 5432}
+}
+
+func (openGaussDriver) dialect() sqlscript.Dialect { return sqlscript.OpenGauss }
+
+func (openGaussDriver) open(connection config.Connection, _ *noticeRouter) (*sql.DB, error) {
+	connector, err := ogpq.NewConnector(postgresURL(connection))
+	if err != nil {
+		return nil, err
+	}
+	return sql.OpenDB(connector), nil
+}
+
+func (openGaussDriver) sessionID(ctx context.Context, conn *sql.Conn) (int64, error) {
+	var pid int64
+	err := conn.QueryRowContext(ctx, "SELECT pg_backend_pid()").Scan(&pid)
+	return pid, err
+}
+
+func (openGaussDriver) cancel(ctx context.Context, db *sql.DB, session int64) error {
+	_, err := db.ExecContext(ctx, "SELECT pg_cancel_backend($1)", session)
+	return err
+}
+
+var versionNumber = regexp.MustCompile(`\d+(\.\d+)+`)
+
+// version() reads like "(openGauss 6.0.0 build aee4abd5) compiled at ...".
+func (openGaussDriver) version(ctx context.Context, db *sql.DB) (string, error) {
+	var version string
+	if err := db.QueryRowContext(ctx, "SELECT version()").Scan(&version); err != nil {
+		return "", err
+	}
+	if start := strings.IndexByte(version, '('); start >= 0 {
+		if number := versionNumber.FindString(version[start:]); number != "" {
+			return number, nil
+		}
+	}
+	return version, nil
+}
+
+func (openGaussDriver) describe(err error) (ErrorInfo, bool) {
+	var ogErr *ogpq.Error
+	if !errors.As(err, &ogErr) {
+		return ErrorInfo{}, false
+	}
+	position, _ := strconv.Atoi(ogErr.Position)
+	return ErrorInfo{
+		Message:  ogErr.Severity + ": " + ogErr.Message,
+		Detail:   ogErr.Detail,
+		Hint:     ogErr.Hint,
+		Code:     string(ogErr.Code),
+		Position: position,
+	}, true
+}
+
+// damengDriver treats the connection's database as the default schema,
+// since a DM instance holds one database.
+type damengDriver struct{}
+
+func (damengDriver) info() Info {
+	return Info{ID: config.Dameng, Label: "达梦 DM", DefaultPort: 5236}
+}
+
+func (damengDriver) dialect() sqlscript.Dialect { return sqlscript.Oracle }
+
+func (damengDriver) open(connection config.Connection, _ *noticeRouter) (*sql.DB, error) {
+	query := url.Values{}
+	for key, value := range connection.Params {
+		query.Set(key, value)
+	}
+	if query.Get("schema") == "" && connection.Database != "" {
+		query.Set("schema", connection.Database)
+	}
+	target := url.URL{
+		Scheme:   "dm",
+		User:     url.UserPassword(connection.User, connection.Password),
+		Host:     net.JoinHostPort(connection.Host, strconv.Itoa(connection.Port)),
+		RawQuery: query.Encode(),
+	}
+	return sql.Open("dm", target.String())
+}
+
+func (damengDriver) sessionID(ctx context.Context, conn *sql.Conn) (int64, error) {
+	var id int64
+	err := conn.QueryRowContext(ctx, "SELECT SESSID()").Scan(&id)
+	return id, err
+}
+
+func (damengDriver) cancel(ctx context.Context, db *sql.DB, session int64) error {
+	_, err := db.ExecContext(ctx, fmt.Sprintf("CALL SP_CANCEL_SESSION_OPERATION(%d)", session))
+	return err
+}
+
+// The banner reads "DM Database Server x64 V8"; ID_CODE carries the build.
+func (damengDriver) version(ctx context.Context, db *sql.DB) (string, error) {
+	var banner, build string
+	if err := db.QueryRowContext(ctx, "SELECT SVR_VERSION FROM V$INSTANCE").Scan(&banner); err != nil {
+		return "", err
+	}
+	version := strings.TrimSpace(banner)
+	if fields := strings.Fields(version); len(fields) > 0 {
+		version = fields[len(fields)-1]
+	}
+	if err := db.QueryRowContext(ctx, "SELECT ID_CODE").Scan(&build); err == nil {
+		version += " (" + strings.Trim(strings.TrimSpace(build), "-") + ")"
+	}
+	return version, nil
+}
+
+func (damengDriver) describe(err error) (ErrorInfo, bool) {
+	var dmErr *dm.DmError
+	if !errors.As(err, &dmErr) {
+		return ErrorInfo{}, false
+	}
+	return ErrorInfo{Message: dmErr.Error(), Code: strconv.Itoa(int(dmErr.ErrCode))}, true
+}
+
+type xuguDriver struct{}
+
+func (xuguDriver) info() Info {
+	return Info{ID: config.Xugu, Label: "虚谷 XuguDB", DefaultPort: 5138}
+}
+
+func (xuguDriver) dialect() sqlscript.Dialect { return sqlscript.Oracle }
+
+func (xuguDriver) open(connection config.Connection, _ *noticeRouter) (*sql.DB, error) {
+	settings := map[string]string{
+		"IP":              connection.Host,
+		"Port":            strconv.Itoa(connection.Port),
+		"DB":              connection.Database,
+		"User":            connection.User,
+		"PWD":             connection.Password,
+		"CHAR_SET":        "UTF8",
+		"AUTO_COMMIT":     "on",
+		"CONNECT_TIMEOUT": strconv.Itoa(int(connectTimeout.Seconds())),
+	}
+	for key, value := range connection.Params {
+		settings[key] = value
+	}
+	var dsn strings.Builder
+	for _, key := range slices.Sorted(maps.Keys(settings)) {
+		value := settings[key]
+		if strings.ContainsAny(value, ";'= ") {
+			value = "'" + strings.ReplaceAll(value, "'", "''") + "'"
+		}
+		fmt.Fprintf(&dsn, "%s=%s;", key, value)
+	}
+	return sql.Open("xugu", dsn.String())
+}
+
+func (xuguDriver) sessionID(ctx context.Context, conn *sql.Conn) (int64, error) {
+	var id int64
+	err := conn.QueryRowContext(ctx, "SELECT SYS_CONTEXT('USERENV', 'SESSIONID')").Scan(&id)
+	return id, err
+}
+
+// The Xugu driver ignores contexts, so the server aborts the session's
+// transaction instead; the session itself stays open.
+func (xuguDriver) cancel(ctx context.Context, db *sql.DB, session int64) error {
+	var node int64
+	if err := db.QueryRowContext(ctx, "SELECT NODEID FROM SYS_ALL_SESSIONS WHERE SESSION_ID = ?", session).Scan(&node); err != nil {
+		return err
+	}
+	_, err := db.ExecContext(ctx, "EXEC DBMS_DBA.KILL_SESSION_TRANS(?, ?)", node, session)
+	return err
+}
+
+func (xuguDriver) version(ctx context.Context, db *sql.DB) (string, error) {
+	var version string
+	if err := db.QueryRowContext(ctx, "SELECT VERSION()").Scan(&version); err != nil {
+		return "", err
+	}
+	return strings.TrimPrefix(version, "XuGu SQL Server "), nil
+}
+
+// Xugu errors are plain strings such as "[E5021 L1 C15] 表或视图T不存在".
+var xuguErrorTag = regexp.MustCompile(`\[(E\d+)(?: L(\d+) C\d+)?\]`)
+
+func (xuguDriver) describe(err error) (ErrorInfo, bool) {
+	message := strings.TrimSpace(strings.ReplaceAll(err.Error(), "\x00", ""))
+	tags := xuguErrorTag.FindAllStringSubmatch(message, -1)
+	if len(tags) == 0 {
+		return ErrorInfo{}, false
+	}
+	info := ErrorInfo{Message: message, Code: tags[0][1]}
+	for _, tag := range tags {
+		if tag[2] != "" {
+			info.StatementLine, _ = strconv.Atoi(tag[2])
+		}
+	}
+	return info, true
+}

@@ -38,12 +38,22 @@ const (
 	TDSQLPostgres   Driver = "tdsql-pg"
 	OpenTenBase     Driver = "opentenbase"
 	KWDB            Driver = "kwdb"
+
+	OpenGauss Driver = "opengauss"
+	Dameng    Driver = "dm"
+	Xugu      Driver = "xugu"
+
+	// Databases built on the openGauss kernel.
+	Vastbase Driver = "vastbase"
+	GBase8c  Driver = "gbase8c"
+	GaussDB  Driver = "gaussdb"
 )
 
 var serverDrivers = []Driver{
 	Postgres, MySQL, SQLServer, Oracle,
 	MariaDB, TiDB, OceanBase, GoldenDB, TDSQLMySQL, PolarDBMySQL, GreatSQL, GBase8a,
 	PolarDBPostgres, TDSQLPostgres, OpenTenBase, KWDB,
+	OpenGauss, Dameng, Xugu, Vastbase, GBase8c, GaussDB,
 }
 
 type Connection struct {

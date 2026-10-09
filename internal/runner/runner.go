@@ -320,7 +320,7 @@ func (run *execution) executeFile(ctx context.Context, files workspace.Workspace
 					Index:     statement.Index,
 					StartLine: statement.StartLine,
 					EndLine:   statement.EndLine,
-					Line:      lineAt(statement, info.Position),
+					Line:      errorLine(statement, info),
 					ErrorInfo: info,
 				}
 				file.appendLog(LogEntry{At: statementStart, Kind: "error", Index: statement.Index, Text: summarize(statement.Text), DurationMs: duration})
@@ -450,6 +450,13 @@ func summarize(text string) string {
 		return collapsed
 	}
 	return string([]rune(collapsed)[:200]) + "…"
+}
+
+func errorLine(statement sqlscript.Statement, info database.ErrorInfo) int {
+	if info.StatementLine > 0 {
+		return statement.StartLine + info.StatementLine - 1
+	}
+	return lineAt(statement, info.Position)
 }
 
 // lineAt converts a server-reported 1-based character position inside the

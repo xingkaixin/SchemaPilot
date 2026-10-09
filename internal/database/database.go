@@ -56,6 +56,12 @@ var drivers = []driver{
 	compatible{postgresDriver{}, config.TDSQLPostgres, "TDSQL PG 版", 0},
 	compatible{postgresDriver{}, config.OpenTenBase, "OpenTenBase", 0},
 	compatible{postgresDriver{}, config.KWDB, "KWDB", 26257},
+	openGaussDriver{},
+	compatible{openGaussDriver{}, config.Vastbase, "海量 Vastbase", 0},
+	compatible{openGaussDriver{}, config.GBase8c, "南大通用 GBase 8c", 0},
+	compatible{openGaussDriver{}, config.GaussDB, "华为 GaussDB", 8000},
+	damengDriver{},
+	xuguDriver{},
 }
 
 // compatible lists a database that speaks another one's protocol under its
@@ -201,6 +207,9 @@ type ErrorInfo struct {
 	Hint     string `json:"hint,omitempty"`
 	Code     string `json:"code,omitempty"`
 	Position int    `json:"-"`
+	// StatementLine is the 1-based error line within the statement, for
+	// servers that report a line instead of a character position.
+	StatementLine int `json:"-"`
 }
 
 func (db *DB) Describe(err error) ErrorInfo {
