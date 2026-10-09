@@ -80,7 +80,9 @@ type Run struct {
 	StartedAt  time.Time  `json:"startedAt"`
 	FinishedAt *time.Time `json:"finishedAt,omitempty"`
 	Error      string     `json:"error,omitempty"`
-	Files      []*FileRun `json:"files"`
+	// Version is the server version reported when the run connected.
+	Version string     `json:"version,omitempty"`
+	Files   []*FileRun `json:"files"`
 }
 
 type Manager struct {
@@ -205,8 +207,10 @@ func (run *execution) execute(ctx context.Context, files workspace.Workspace, pl
 		return
 	}
 	defer db.Close()
+	version, _ := db.Version(ctx)
 	run.mu.Lock()
 	run.db = db
+	run.run.Version = version
 	run.mu.Unlock()
 
 	for _, step := range plan.Steps {
