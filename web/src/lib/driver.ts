@@ -1,6 +1,10 @@
 import type { DriverInfo } from "../api";
 
-type Style = { badge: "blue" | "teal" | "purple" | "red" | "orange"; tile: string; params: string };
+type Style = {
+  badge: "blue" | "teal" | "purple" | "red" | "orange" | "green" | "neutral";
+  tile: string;
+  params: string;
+};
 
 const styles: Record<string, Style> = {
   postgres: {
@@ -28,7 +32,20 @@ const styles: Record<string, Style> = {
     tile: "bg-kumo-badge-orange/12 text-kumo-badge-orange",
     params: "_pragma=journal_mode(WAL)",
   },
+  opengauss: {
+    badge: "green",
+    tile: "bg-kumo-badge-green/12 text-kumo-badge-green",
+    params: "sslmode=disable",
+  },
+  dm: { badge: "neutral", tile: "bg-kumo-fill text-kumo-subtle", params: "compatibleMode=oracle" },
+  xugu: { badge: "neutral", tile: "bg-kumo-fill text-kumo-subtle", params: "CHAR_SET=GBK" },
 };
+
+const databaseLabels: Record<string, string> = { oracle: "服务名", dm: "模式（schema）" };
+
+export function driverDatabaseLabel(driver?: DriverInfo) {
+  return databaseLabels[driver?.id ?? ""] ?? "数据库";
+}
 
 // Compatible databases take the look of the protocol they speak.
 function styleOf(driver?: DriverInfo): Style | undefined {

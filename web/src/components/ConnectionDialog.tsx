@@ -16,7 +16,7 @@ import { useStore } from "../store";
 import { notifyError } from "../toasts";
 import { useUi } from "../ui";
 import { ConfirmDialog } from "./ConfirmDialog";
-import { driverParamsExample, driverTone } from "../lib/driver";
+import { driverDatabaseLabel, driverParamsExample, driverTone } from "../lib/driver";
 
 interface Draft {
   name: string;
@@ -225,7 +225,7 @@ function ConnectionForm({
               />
             </div>
             <Input
-              label={draft.driver === "oracle" ? "服务名" : "数据库"}
+              label={driverDatabaseLabel(driver)}
               className="w-full min-w-0 font-mono"
               value={draft.database}
               onChange={(event) => change({ database: event.target.value })}
