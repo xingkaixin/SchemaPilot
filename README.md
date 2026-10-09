@@ -38,20 +38,35 @@ user = 'app'
 password = '${MYSQL_PASSWORD}'
 ```
 
-连接名只能包含字母、数字、`.`、`_`、`-`，因为它同时是子目录名。目前支持 PostgreSQL 和 MySQL。
+连接名只能包含字母、数字、`.`、`_`、`-`，因为它同时是子目录名。
+
+支持的数据库（均使用纯 Go 驱动，二进制无需额外依赖）：
+
+| `driver` | 数据库 | 说明 |
+| --- | --- | --- |
+| `postgres` | PostgreSQL | 也可用于 CockroachDB 等兼容 PostgreSQL 协议的数据库 |
+| `mysql` | MySQL | 也可用于 MariaDB、TiDB 等兼容 MySQL 协议的数据库 |
+| `sqlserver` | SQL Server | `database` 填库名 |
+| `oracle` | Oracle | `database` 填服务名，例如 `FREEPDB1` |
+| `sqlite` | SQLite | 只需 `database`：数据库文件路径，相对路径从启动目录算起 |
 
 ## 编排与执行
 
 - 每个连接有一条独立的执行顺序。新文件默认按路径的自然顺序串行追加到末尾。
 - 一步可以是单个文件，也可以是几路并行的分支；分支内的文件依次执行。所有分支完成后才进入下一步。
 - 在页面上拖动文件调整顺序：放在两步之间成为新的一步，放到某一步上与它并行，放到分支内则在该分支里串行。每个文件的 ⋯ 菜单里也有前移、后移、并行、禁用、移到其他连接等操作。
-- 文件被拆成单条语句执行，每条语句自动提交。PostgreSQL 支持 `$$` 函数体；MySQL 支持 `DELIMITER` 命令，可用来定义存储过程。
+- 文件被拆成单条语句执行，每条语句自动提交。拆分规则与各数据库自带的命令行工具一致：
+  - PostgreSQL 支持 `$$` 函数体。
+  - MySQL 支持 `DELIMITER` 命令，可用来定义存储过程。
+  - SQL Server 支持单独一行的 `GO` 结束批次；`CREATE PROCEDURE/FUNCTION/TRIGGER` 一直到 `GO` 或文件末尾为一条；`BEGIN … END` 块内的分号不拆分。
+  - Oracle 的 PL/SQL 块（`DECLARE`/`BEGIN`、`CREATE PROCEDURE/FUNCTION/PACKAGE/TRIGGER/TYPE`）以单独一行的 `/` 结束；普通 SQL 末尾的分号会去掉。
+  - SQLite 的 `CREATE TRIGGER … BEGIN … END` 作为一条执行。
 - 任何文件失败后，整条执行顺序暂停：正在执行的其他分支跑完当前文件后停止，后续文件不再开始。页面会标出失败的语句、行号和数据库返回的错误。
 - 暂停后可以：
   - **从失败处继续**：已成功的文件跳过；失败的文件从第 1 条语句重新执行。如果它前面的语句已经提交，需要先确认它们可以重复执行，或修改文件。
   - **禁用文件**：被禁用的文件在运行时跳过。⋯ 菜单里可以一次禁用某个文件之后的全部文件。
   - **全部重跑**：所有启用的文件从头执行。
-- **停止**会在数据库端取消正在运行的语句（PostgreSQL 用 `pg_cancel_backend`，MySQL 用 `KILL QUERY`），已提交的语句不会回滚。
+- **停止**会在数据库端取消正在运行的语句（PostgreSQL 用 `pg_cancel_backend`，MySQL 用 `KILL QUERY`，SQL Server、Oracle、SQLite 由驱动发送中断），已提交的语句不会回滚。
 - 不支持 psql 元命令、`COPY ... FROM stdin` 以及 PostgreSQL 的 `BEGIN ATOMIC` 函数体。
 
 ## 数据保存在哪里

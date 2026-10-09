@@ -6,7 +6,7 @@ browser (React + Kumo)                       schemapilot (Go)
   polling ───────────────── HTTP API ── workspace: scan dir, read/import .sql
                                      ── config:    schemapilot.toml
                                      ── runner:    steps → lanes → files → statements
-                                                     └─ database: postgres / mysql drivers
+                                                     └─ database: postgres / mysql / sqlserver / oracle / sqlite drivers
                                                      └─ sqlscript: split files into statements
 ```
 
@@ -21,11 +21,11 @@ browser (React + Kumo)                       schemapilot (Go)
 - Steps run in order. Each lane of a step runs in its own goroutine on one pinned database session, so temporary tables and session settings carry across the files of a lane.
 - Files are read when they start, split by `internal/sqlscript`, and executed one statement at a time in autocommit mode. Each statement's rows, duration and server notices are logged (the log keeps the last 500 entries per file).
 - A failure marks the run as halted: lanes finish their current file and start nothing new.
-- Stopping first asks the server to cancel each active session's statement through a separate connection, then cancels the context. Closing a MySQL connection alone would leave the query running on the server.
+- Stopping first asks the server to cancel each active session's statement through a separate connection, then cancels the context. Closing a MySQL connection alone would leave the query running on the server. SQL Server, Oracle and SQLite drivers interrupt the statement themselves when the context is cancelled, so their cancel step does nothing.
 
 ## Drivers
 
-`internal/database` hides the differences between PostgreSQL (pgx) and MySQL: connection strings, session ids, cancellation, version queries, notice capture (PostgreSQL only) and error details (SQLSTATE, detail, hint, error position). Adding a driver means adding one implementation and listing it in `drivers`; the connection dialog reads the list from the API.
+`internal/database` hides the differences between PostgreSQL (pgx), MySQL, SQL Server (go-mssqldb), Oracle (go-ora) and SQLite (modernc): connection strings, session ids, cancellation, version queries, notice capture (PostgreSQL only) and error details (SQLSTATE, detail, hint, error position). Adding a driver means adding one implementation and listing it in `drivers`; the connection dialog reads the list from the API.
 
 ## Security
 
