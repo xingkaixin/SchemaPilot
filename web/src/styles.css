@@ -17,3 +17,92 @@ body {
   background-image: radial-gradient(var(--color-kumo-fill) 1px, transparent 1px);
   background-size: 16px 16px;
 }
+
+/* Run-state motion for file cards. Everything stays still for viewers who
+   ask for reduced motion. */
+@media (prefers-reduced-motion: no-preference) {
+  .run-sweep {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .run-sweep::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: linear-gradient(100deg, transparent 25%, var(--sweep-color) 50%, transparent 75%);
+    transform: translateX(-100%);
+  }
+
+  .run-sweep-running::after {
+    --sweep-color: color-mix(in oklab, var(--color-kumo-brand) 16%, transparent);
+    animation: run-sweep 1.6s linear infinite;
+  }
+
+  .run-sweep-succeeded::after {
+    --sweep-color: color-mix(in oklab, var(--color-kumo-success) 24%, transparent);
+    animation: run-sweep 0.7s cubic-bezier(0.2, 0, 0, 1) both;
+  }
+
+  .run-sweep-failed::after {
+    --sweep-color: color-mix(in oklab, var(--color-kumo-danger) 24%, transparent);
+    animation: run-sweep 0.7s cubic-bezier(0.2, 0, 0, 1) both;
+  }
+
+  .run-shake {
+    animation: run-shake 0.36s cubic-bezier(0.2, 0, 0, 1);
+  }
+
+  .run-pop {
+    animation: run-pop 0.32s cubic-bezier(0.2, 0, 0, 1);
+  }
+
+  /* Queued files: a slow highlight passing over the status text. */
+  .run-text-shimmer {
+    background: linear-gradient(
+        90deg,
+        var(--text-color-kumo-subtle) 35%,
+        var(--text-color-kumo-default) 50%,
+        var(--text-color-kumo-subtle) 65%
+      )
+      0 0 / 250% 100%;
+    background-clip: text;
+    color: transparent;
+    animation: run-text-shimmer 2.4s linear infinite;
+  }
+}
+
+@keyframes run-sweep {
+  to {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes run-shake {
+  25% {
+    transform: translateX(-3px);
+  }
+  50% {
+    transform: translateX(3px);
+  }
+  75% {
+    transform: translateX(-1.5px);
+  }
+}
+
+@keyframes run-pop {
+  from {
+    transform: scale(0.6);
+    opacity: 0.4;
+  }
+}
+
+@keyframes run-text-shimmer {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: 0 0;
+  }
+}

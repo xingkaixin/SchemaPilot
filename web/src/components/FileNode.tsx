@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Button, DropdownMenu, cn } from "@cloudflare/kumo";
 import { useDraggable } from "@dnd-kit/core";
 import {
@@ -59,6 +60,7 @@ export function FileNode({
     disabled: locked,
   });
   const now = useNow(state === "running");
+  const settled = useSettled(state);
   const statements = result?.statements || file?.statements;
 
   let meta = statements != null ? `${statements} 条语句` : "";
@@ -106,6 +108,10 @@ export function FileNode({
       ref={setNodeRef}
       className={cn(
         "group flex h-14 min-w-0 items-center gap-1 rounded-[10px] bg-kumo-base pr-1.5 pl-0.5 shadow-xs ring ring-kumo-line",
+        (state === "running" || settled) && "run-sweep",
+        state === "running" && "run-sweep-running",
+        settled === "succeeded" && "run-sweep-succeeded",
+        settled === "failed" && "run-sweep-failed run-shake",
         selected && "ring-2 ring-kumo-brand",
         state === "running" && "bg-kumo-info-tint ring-2 ring-kumo-brand",
         state === "failed" && "ring-2 ring-kumo-danger",
@@ -133,7 +139,9 @@ export function FileNode({
         onClick={actions.select}
         className="flex h-full min-w-0 flex-1 cursor-pointer items-center gap-2.5 px-1 text-left"
       >
-        <StatusIcon state={state} />
+        <span key={state} className={cn("flex", settled && "run-pop")}>
+          <StatusIcon state={state} />
+        </span>
         <span className="flex min-w-0 flex-1 flex-col">
           <span
             className={cn(
@@ -157,7 +165,13 @@ export function FileNode({
             {meta}
           </span>
         </span>
-        <span className={cn("shrink-0 text-sm whitespace-nowrap text-kumo-subtle", tone)}>
+        <span
+          className={cn(
+            "shrink-0 text-sm whitespace-nowrap text-kumo-subtle",
+            tone,
+            state === "waiting" && "run-text-shimmer",
+          )}
+        >
           {side}
         </span>
       </button>
@@ -238,6 +252,24 @@ export function FileNode({
       </DropdownMenu>
     </div>
   );
+}
+
+/**
+ * Returns the outcome a file just reached during a run, so the card can
+ * play its one-off motion. Results restored on load are not "just reached".
+ */
+function useSettled(state: NodeState) {
+  const [tracked, setTracked] = useState<{ state: NodeState; settled: NodeState | null }>({
+    state,
+    settled: null,
+  });
+  if (tracked.state !== state) {
+    const finished =
+      (tracked.state === "running" || tracked.state === "waiting") &&
+      (state === "succeeded" || state === "failed");
+    setTracked({ state, settled: finished ? state : null });
+  }
+  return tracked.state === state ? tracked.settled : null;
 }
 
 export function DragGhost({ path }: { path: string }) {
