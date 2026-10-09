@@ -28,6 +28,18 @@ export interface WorkspaceFile {
   statements: number | null;
 }
 
+export interface ArrangedConnection {
+  driver?: Driver;
+  steps: string[][][];
+  disabled?: string[];
+}
+
+export interface Arrangement {
+  version: number;
+  connections: Record<string, ArrangedConnection>;
+  detached?: string[];
+}
+
 export interface Workspace {
   root: string;
   configFile: string;
@@ -36,6 +48,10 @@ export interface Workspace {
   drivers: DriverInfo[];
   connections: Connection[];
   files: WorkspaceFile[];
+  arrangement: Arrangement | null;
+  arrangementFile: string;
+  arrangementRevision: string;
+  arrangementError?: string;
 }
 
 export interface Statement {
@@ -143,6 +159,8 @@ export const api = {
     request<void>(`/api/connections/${encodeURIComponent(name)}`, { method: "DELETE" }),
   testConnection: (connection: Connection) =>
     request<TestResult>("/api/connections/test", json("POST", connection)),
+  saveArrangement: (arrangement: Arrangement, baseRevision: string) =>
+    request<{ revision: string }>("/api/arrangement", json("PUT", { baseRevision, arrangement })),
   file: (path: string, driver?: Driver) =>
     request<FileContent>(
       `/api/file?${new URLSearchParams({ path, driver: driver ?? "" }).toString()}`,

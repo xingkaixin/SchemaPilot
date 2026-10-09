@@ -1,8 +1,14 @@
 import { create } from "zustand";
-import type { Run, Workspace } from "./api";
+import { api, ApiError, type Arrangement, type Run, type Workspace } from "./api";
 import { allPaths, normalize, arrangeByName, removeFiles, type Step } from "./lib/arrangement";
 import { emptyConnection, type ConnectionState, type RunMode } from "./lib/model";
+import { queryClient } from "./queryClient";
+import { notifyError } from "./toasts";
 
+/**
+ * The arrangement (steps, disabled files, detached files) lives in the
+ * workspace's arrangement file; run results stay in this browser.
+ */
 interface Persisted {
   connections: Record<string, ConnectionState>;
   /** Files from a connection directory that the user moved out of it. */
@@ -12,6 +18,8 @@ interface Persisted {
 
 interface State extends Persisted {
   storageKey?: string;
+  /** Revision of the arrangement file this state was read from or last saved as. */
+  arrangementRevision?: string;
   workspace?: Workspace;
   selectedConnection?: string;
   selectedFile?: string;
@@ -33,25 +41,52 @@ interface State extends Persisted {
   removeConnection: (name: string) => void;
 }
 
+/** Older versions also kept the arrangement here; it seeds a workspace without a file. */
 function load(key: string): Persisted {
   try {
     const raw = localStorage.getItem(key);
     if (raw) {
       const parsed = JSON.parse(raw) as Partial<Persisted>;
-      return {
-        connections: parsed.connections ?? {},
-        detached: parsed.detached ?? [],
-        selected: parsed.selected,
-      };
+      const connections: Record<string, ConnectionState> = {};
+      for (const [name, value] of Object.entries(parsed.connections ?? {})) {
+        connections[name] = { ...emptyConnection(), ...value };
+      }
+      return { connections, detached: parsed.detached ?? [], selected: parsed.selected };
     }
   } catch {
-    // Unreadable storage falls back to an empty arrangement.
+    // Unreadable storage falls back to an empty state.
   }
   return { connections: {}, detached: [] };
 }
 
-function reconcile(state: Persisted, workspace: Workspace): Persisted {
+function applyArrangement(state: Persisted, arrangement: Arrangement): Persisted {
+  const connections: Record<string, ConnectionState> = {};
+  const names = new Set([
+    ...Object.keys(state.connections),
+    ...Object.keys(arrangement.connections),
+  ]);
+  for (const name of names) {
+    const arranged = arrangement.connections[name];
+    connections[name] = {
+      ...(state.connections[name] ?? emptyConnection()),
+      steps: arranged?.steps ?? [],
+      disabled: arranged?.disabled ?? [],
+    };
+  }
+  return { ...state, connections, detached: arrangement.detached ?? [] };
+}
+
+/** Connections that own a directory: configured here or arranged in the file. */
+function connectionNames(workspace: Workspace) {
   const names = workspace.connections.map((connection) => connection.name);
+  for (const name of Object.keys(workspace.arrangement?.connections ?? {})) {
+    if (!names.includes(name)) names.push(name);
+  }
+  return names;
+}
+
+function reconcile(state: Persisted, workspace: Workspace): Persisted {
+  const names = connectionNames(workspace);
   const connections: Record<string, ConnectionState> = {};
   for (const [name, value] of Object.entries(state.connections)) {
     // A config that failed to parse lists no connections; keep their state.
@@ -114,7 +149,18 @@ export const useStore = create<State>()((set, get) => {
     sync: (workspace) =>
       set((state) => {
         const storageKey = `schemapilot:${workspace.root}`;
-        const base = state.storageKey === storageKey ? state : load(storageKey);
+        const reopened = state.storageKey !== storageKey;
+        let base: Persisted = reopened ? load(storageKey) : state;
+        let arrangementRevision = reopened ? undefined : state.arrangementRevision;
+        const changedElsewhere =
+          workspace.arrangementRevision !== arrangementRevision &&
+          !seenRevisions.has(workspace.arrangementRevision);
+        if (!workspace.arrangementError && (reopened || changedElsewhere)) {
+          if (workspace.arrangement) base = applyArrangement(base, workspace.arrangement);
+          arrangementRevision = workspace.arrangementRevision;
+          seenRevisions.add(arrangementRevision);
+          lastSaved = undefined;
+        }
         const next = reconcile(base, workspace);
         const names = workspace.connections.map((connection) => connection.name);
         const preferred =
@@ -124,6 +170,7 @@ export const useStore = create<State>()((set, get) => {
         return {
           ...next,
           storageKey,
+          arrangementRevision,
           workspace,
           selectedConnection,
           checked: state.checked.filter((path) => existing.has(path)),
@@ -235,24 +282,111 @@ export const useStore = create<State>()((set, get) => {
   };
 });
 
-let saveTimer: ReturnType<typeof setTimeout> | undefined;
+/** Revisions this tab has read or written; an older response carrying one is stale. */
+const seenRevisions = new Set<string>();
+/** The arrangement as last read from or written to the file, serialized. */
+let lastSaved: string | undefined;
+
+function toArrangement(state: State): Arrangement {
+  const workspace = state.workspace!;
+  const connections: Arrangement["connections"] = {};
+  for (const [name, value] of sortedEntries(state.connections)) {
+    if (value.steps.length === 0 && value.disabled.length === 0) continue;
+    const driver =
+      workspace.connections.find((connection) => connection.name === name)?.driver ??
+      workspace.arrangement?.connections[name]?.driver;
+    connections[name] = { driver, steps: value.steps, disabled: value.disabled };
+  }
+  return { version: 1, connections, detached: state.detached };
+}
+
+let storageTimer: ReturnType<typeof setTimeout> | undefined;
+let arrangementTimer: ReturnType<typeof setTimeout> | undefined;
+
 useStore.subscribe((state, previous) => {
-  if (!state.storageKey) return;
+  if (!state.storageKey || !state.workspace) return;
   if (
-    state.connections === previous.connections &&
-    state.detached === previous.detached &&
-    state.selectedConnection === previous.selectedConnection
+    state.connections !== previous.connections ||
+    state.selectedConnection !== previous.selectedConnection
   ) {
+    clearTimeout(storageTimer);
+    storageTimer = setTimeout(() => {
+      try {
+        const { connections, selectedConnection } = useStore.getState();
+        const results: Persisted["connections"] = {};
+        for (const [name, value] of Object.entries(connections)) {
+          results[name] = { ...value, steps: [], disabled: [] };
+        }
+        const persisted: Persisted = {
+          connections: results,
+          detached: [],
+          selected: selectedConnection,
+        };
+        localStorage.setItem(state.storageKey!, JSON.stringify(persisted));
+      } catch {
+        // Storage may be full or blocked; results then live in memory only.
+      }
+    }, 300);
+  }
+  if (state.connections !== previous.connections || state.detached !== previous.detached) {
+    clearTimeout(arrangementTimer);
+    arrangementTimer = setTimeout(() => void saveArrangement(), 300);
+  }
+});
+
+async function saveArrangement() {
+  const state = useStore.getState();
+  const workspace = state.workspace;
+  if (!workspace || workspace.arrangementError) return;
+  const arrangement = toArrangement(state);
+  const serialized = JSON.stringify(arrangement);
+  if (lastSaved === undefined && !workspace.arrangement) {
+    // Without a file, only create one once there is something to keep.
+    if (Object.keys(arrangement.connections).length === 0 && arrangement.detached?.length === 0)
+      return;
+  }
+  if (serialized === lastSaved || (lastSaved === undefined && sameAsFile(arrangement, workspace))) {
+    lastSaved = serialized;
     return;
   }
-  clearTimeout(saveTimer);
-  saveTimer = setTimeout(() => {
-    try {
-      const { connections, detached, selectedConnection } = useStore.getState();
-      const persisted: Persisted = { connections, detached, selected: selectedConnection };
-      localStorage.setItem(state.storageKey!, JSON.stringify(persisted));
-    } catch {
-      // Storage may be full or blocked; the arrangement then lives in memory only.
+  try {
+    const { revision } = await api.saveArrangement(arrangement, state.arrangementRevision ?? "");
+    seenRevisions.add(revision);
+    lastSaved = serialized;
+    useStore.setState({ arrangementRevision: revision });
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 409) {
+      // Someone else changed the file: take theirs instead of overwriting it.
+      notifyError("编排已在别处修改，已重新载入", error);
+      useStore.setState({ arrangementRevision: undefined });
+      seenRevisions.clear();
+      await queryClient.invalidateQueries({ queryKey: ["workspace"] });
+    } else {
+      notifyError("保存编排失败", error);
     }
-  }, 300);
-});
+  }
+}
+
+function sameAsFile(arrangement: Arrangement, workspace: Workspace) {
+  return (
+    workspace.arrangement !== null &&
+    JSON.stringify(arrangement) === JSON.stringify(toComparable(workspace.arrangement))
+  );
+}
+
+/** The file as toArrangement would write it, for comparison. */
+function toComparable(arrangement: Arrangement): Arrangement {
+  const connections: Arrangement["connections"] = {};
+  for (const [name, value] of sortedEntries(arrangement.connections)) {
+    connections[name] = {
+      driver: value.driver,
+      steps: value.steps,
+      disabled: value.disabled ?? [],
+    };
+  }
+  return { version: 1, connections, detached: arrangement.detached ?? [] };
+}
+
+function sortedEntries<T>(record: Record<string, T>) {
+  return Object.entries(record).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+}
