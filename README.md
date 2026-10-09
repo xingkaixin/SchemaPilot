@@ -44,11 +44,17 @@ password = '${MYSQL_PASSWORD}'
 
 | `driver` | 数据库 | 说明 |
 | --- | --- | --- |
-| `postgres` | PostgreSQL | 也可用于 CockroachDB 等兼容 PostgreSQL 协议的数据库 |
-| `mysql` | MySQL | 也可用于 MariaDB、TiDB 等兼容 MySQL 协议的数据库 |
+| `postgres` | PostgreSQL | |
+| `mysql` | MySQL | |
 | `sqlserver` | SQL Server | `database` 填库名 |
 | `oracle` | Oracle | `database` 填服务名，例如 `FREEPDB1` |
 | `sqlite` | SQLite | 只需 `database`：数据库文件路径，相对路径从启动目录算起 |
+
+兼容 MySQL 协议的数据库：`mariadb`、`tidb`、`oceanbase`（MySQL 模式）、`goldendb`、`tdsql-mysql`、`polardb-mysql`（含 PolarDB-X）、`greatsql`、`gbase8a`。
+
+兼容 PostgreSQL 协议的数据库：`polardb-pg`、`tdsql-pg`、`opentenbase`、`kwdb`。
+
+这些类型使用对应协议的驱动和脚本拆分规则，单独列出是为了在页面上直接选到。
 
 ## 编排与执行
 
