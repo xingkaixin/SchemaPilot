@@ -200,8 +200,12 @@ export const useStore = create<State>()((set, get) => {
         }
         const results = { ...state.results };
         for (const file of run.files) results[file.path] = file;
-        const { id, status, startedAt, finishedAt, error } = run;
-        return { ...state, results, lastRun: { id, status, startedAt, finishedAt, error } };
+        const { id, status, startedAt, finishedAt, error, version } = run;
+        return {
+          ...state,
+          results,
+          lastRun: { id, status, startedAt, finishedAt, error, version },
+        };
       }),
 
     markInterrupted: (connection) => update(connection, interrupt),

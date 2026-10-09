@@ -7,6 +7,7 @@ export interface RunSummary {
   startedAt: string;
   finishedAt?: string;
   error?: string;
+  version?: string;
 }
 
 export interface ConnectionState {

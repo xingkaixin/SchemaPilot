@@ -98,6 +98,7 @@ export interface Run {
   startedAt: string;
   finishedAt?: string;
   error?: string;
+  version?: string;
   files: FileRun[];
 }
 

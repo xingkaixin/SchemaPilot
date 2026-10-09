@@ -1,7 +1,10 @@
 import { useState } from "react";
-import { Badge, Banner, Button, Loader, Meter } from "@cloudflare/kumo";
+import { Badge, Banner, Button, DropdownMenu, Loader, Meter } from "@cloudflare/kumo";
 import {
   ArrowCounterClockwiseIcon,
+  DownloadSimpleIcon,
+  FileHtmlIcon,
+  FileTextIcon,
   PlayIcon,
   StopIcon,
   WarningCircleIcon,
@@ -29,6 +32,8 @@ import { ConfirmDialog } from "./ConfirmDialog";
 import { DetailPanel } from "./DetailPanel";
 import { Pipeline } from "./Pipeline";
 import { driverBadge } from "../lib/driver";
+import { exportReport, type ExportFormat } from "../lib/exportReport";
+import { canExport } from "../lib/report";
 
 type Confirm = "stop" | "all" | "clear" | null;
 
@@ -72,6 +77,14 @@ export function ConnectionView({
     }
   };
 
+  const runExport = async (format: ExportFormat) => {
+    try {
+      await exportReport(format, state, connection, driver?.label ?? connection.driver);
+    } catch (error) {
+      notifyError("导出失败", error);
+    }
+  };
+
   const stop = async () => {
     try {
       await api.stopRun(name);
@@ -97,6 +110,27 @@ export function ConnectionView({
           <span className="truncate font-mono text-sm text-kumo-subtle">{address}</span>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <DropdownMenu>
+            <DropdownMenu.Trigger
+              render={
+                <Button
+                  icon={DownloadSimpleIcon}
+                  disabled={!canExport(state)}
+                  title={canExport(state) ? undefined : "有文件执行过、且当前没有在运行时才能导出"}
+                >
+                  导出结果
+                </Button>
+              }
+            />
+            <DropdownMenu.Content>
+              <DropdownMenu.Item icon={FileTextIcon} onClick={() => void runExport("log")}>
+                文本日志（.log）
+              </DropdownMenu.Item>
+              <DropdownMenu.Item icon={FileHtmlIcon} onClick={() => void runExport("html")}>
+                HTML 报告（.html）
+              </DropdownMenu.Item>
+            </DropdownMenu.Content>
+          </DropdownMenu>
           <Button disabled={overview.running} onClick={() => openConnectionDialog(name)}>
             编辑连接
           </Button>
