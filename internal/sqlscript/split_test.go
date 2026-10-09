@@ -117,3 +117,14 @@ func TestSplitSQLiteTriggerBody(t *testing.T) {
 		{"COMMIT", 6, 6},
 	})
 }
+
+func TestSplitOpenGaussPLSQLAndDollarBodies(t *testing.T) {
+	source := "BEGIN;\nCREATE FUNCTION f(a int DEFAULT CAST(1 AS int)) RETURNS int AS $$ SELECT a; $$ LANGUAGE sql;\nCREATE OR REPLACE PROCEDURE p(n int) AS\n  total int;\nBEGIN\n  total := n;\nEND;\n/\nBEGIN\n  p(1);\nEND;\n/\nCOMMIT;\n"
+	check(t, source, OpenGauss, []want{
+		{"BEGIN", 1, 1},
+		{"CREATE FUNCTION f(a int DEFAULT CAST(1 AS int)) RETURNS int AS $$ SELECT a; $$ LANGUAGE sql", 2, 2},
+		{"CREATE OR REPLACE PROCEDURE p(n int) AS\n  total int;\nBEGIN\n  total := n;\nEND;", 3, 7},
+		{"BEGIN\n  p(1);\nEND;", 9, 11},
+		{"COMMIT", 13, 13},
+	})
+}

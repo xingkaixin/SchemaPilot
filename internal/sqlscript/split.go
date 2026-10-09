@@ -13,6 +13,8 @@ const (
 	SQLServer
 	Oracle
 	SQLite
+	// OpenGauss follows PostgreSQL and adds gsql's slash-terminated PL/SQL.
+	OpenGauss
 )
 
 type Statement struct {
@@ -26,7 +28,8 @@ type Statement struct {
 // between statements are dropped; a region holding only comments is not a
 // statement. Client-side conventions of each dialect's own CLI apply: MySQL
 // scripts may switch delimiters with DELIMITER, SQL Server scripts may end a
-// batch with GO, and Oracle scripts end PL/SQL units with a lone slash.
+// batch with GO, and Oracle and openGauss scripts end PL/SQL units with a
+// lone slash.
 func Split(source string, dialect Dialect) []Statement {
 	scanner := &splitter{source: source, dialect: dialect, delimiter: ";", line: 1}
 	scanner.run()
@@ -56,6 +59,10 @@ type splitter struct {
 	// a compound body do not end them.
 	nested bool
 	depth  int
+	// bodyPending marks a routine whose AS/IS has not been reached yet;
+	// parens tracks nesting so that CAST(x AS t) is not mistaken for it.
+	bodyPending bool
+	parens      int
 }
 
 func (scanner *splitter) run() {
@@ -98,6 +105,11 @@ func (scanner *splitter) run() {
 			}
 		default:
 			start, line := scanner.pos, scanner.line
+			if char == '(' {
+				scanner.parens++
+			} else if char == ')' {
+				scanner.parens--
+			}
 			word := scanner.skipToken()
 			scanner.markCode(start, line)
 			if word != "" {
@@ -117,6 +129,8 @@ func (scanner *splitter) resetStatement() {
 	scanner.block = false
 	scanner.nested = scanner.dialect == SQLServer
 	scanner.depth = 0
+	scanner.bodyPending = false
+	scanner.parens = 0
 }
 
 func (scanner *splitter) markCode(start, line int) {
@@ -187,13 +201,13 @@ func (scanner *splitter) tryDelimiterCommand() bool {
 }
 
 // trySeparatorLine handles a line holding only the client-side batch
-// separator: GO for SQL Server, a slash for Oracle.
+// separator: GO for SQL Server, a slash for Oracle and openGauss.
 func (scanner *splitter) trySeparatorLine() bool {
 	var separator string
 	switch scanner.dialect {
 	case SQLServer:
 		separator = "go"
-	case Oracle:
+	case Oracle, OpenGauss:
 		separator = "/"
 	default:
 		return false
@@ -218,6 +232,12 @@ func (scanner *splitter) keyword(word string) {
 	if len(scanner.words) < 6 {
 		scanner.words = append(scanner.words, word)
 		scanner.classify()
+	}
+	if scanner.bodyPending && scanner.parens == 0 && (word == "AS" || word == "IS") {
+		scanner.bodyPending = false
+		// A PL/SQL body follows directly; $$ and quoted bodies are literals.
+		next := strings.TrimLeft(scanner.source[scanner.pos:], " \t\r\n")
+		scanner.block = next != "" && isLetter(next[0])
 	}
 	if !scanner.nested {
 		return
@@ -256,6 +276,16 @@ func (scanner *splitter) classify() {
 		if createdObject(words, []string{"CREATE"}, "TEMP", "TEMPORARY") == "TRIGGER" {
 			scanner.nested = true
 		}
+	case OpenGauss:
+		if len(words) == 1 && (words[0] == "DECLARE" || (words[0] == "BEGIN" && !scanner.beginsTransaction())) {
+			scanner.block = true
+		}
+		if len(words) <= 4 {
+			switch createdObject(words, []string{"CREATE"}, "OR", "REPLACE") {
+			case "PROCEDURE", "FUNCTION", "PACKAGE":
+				scanner.bodyPending = true
+			}
+		}
 	}
 }
 
@@ -273,19 +303,20 @@ func createdObject(words []string, verbs []string, modifiers ...string) string {
 	return ""
 }
 
-// beginsTransaction tells BEGIN TRAN and friends apart from a T-SQL block.
+// beginsTransaction tells a BEGIN that starts a transaction apart from one
+// that opens a block.
 func (scanner *splitter) beginsTransaction() bool {
-	if scanner.dialect != SQLServer {
-		return false
-	}
 	rest := strings.TrimLeft(scanner.source[scanner.pos:], " \t\r\n")
 	end := 0
 	for end < len(rest) && isLetter(rest[end]) {
 		end++
 	}
-	switch strings.ToUpper(rest[:end]) {
-	case "TRAN", "TRANSACTION", "DISTRIBUTED", "DIALOG", "CONVERSATION":
-		return true
+	next := strings.ToUpper(rest[:end])
+	switch scanner.dialect {
+	case SQLServer:
+		return slices.Contains([]string{"TRAN", "TRANSACTION", "DISTRIBUTED", "DIALOG", "CONVERSATION"}, next)
+	case OpenGauss:
+		return slices.Contains([]string{"", "TRANSACTION", "WORK", "ISOLATION", "READ", "NOT", "DEFERRABLE"}, next)
 	}
 	return false
 }
@@ -312,7 +343,7 @@ func (scanner *splitter) skipBlockComment() {
 	depth := 0
 	for scanner.pos < len(scanner.source) {
 		if scanner.source[scanner.pos] == '/' && scanner.peek(1) == '*' {
-			if depth == 0 || scanner.dialect == Postgres || scanner.dialect == SQLServer {
+			if depth == 0 || scanner.postgresFamily() || scanner.dialect == SQLServer {
 				depth++
 			}
 			scanner.pos += 2
@@ -352,7 +383,7 @@ func (scanner *splitter) skipToken() string {
 		scanner.skipQuoted('`', false)
 	case char == '[' && (scanner.dialect == SQLServer || scanner.dialect == SQLite):
 		scanner.skipQuoted(']', false)
-	case char == '$' && scanner.dialect == Postgres:
+	case char == '$' && scanner.postgresFamily():
 		if tag, ok := scanner.dollarTag(); ok {
 			scanner.skipDollarQuoted(tag)
 			return ""
@@ -400,7 +431,7 @@ func (scanner *splitter) backslashEscapes() bool {
 	if scanner.dialect == MySQL {
 		return true
 	}
-	if scanner.dialect != Postgres {
+	if !scanner.postgresFamily() {
 		return false
 	}
 	// PostgreSQL E'...' strings accept backslash escapes.
@@ -467,6 +498,10 @@ func (scanner *splitter) skipDollarQuoted(tag string) {
 	if scanner.pos > len(scanner.source) {
 		scanner.pos = len(scanner.source)
 	}
+}
+
+func (scanner *splitter) postgresFamily() bool {
+	return scanner.dialect == Postgres || scanner.dialect == OpenGauss
 }
 
 func isIdentifierByte(char byte) bool {
