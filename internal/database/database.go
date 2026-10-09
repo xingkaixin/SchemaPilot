@@ -24,6 +24,8 @@ type Info struct {
 	DefaultPort int           `json:"defaultPort"`
 	// File drivers take a database file path instead of a server address.
 	File bool `json:"file,omitempty"`
+	// Protocol names the driver a compatible database is reached through.
+	Protocol config.Driver `json:"protocol,omitempty"`
 }
 
 type driver interface {
@@ -42,6 +44,36 @@ var drivers = []driver{
 	sqlServerDriver{},
 	oracleDriver{},
 	sqliteDriver{sessions: &atomic.Int64{}},
+	compatible{mysqlDriver{}, config.MariaDB, "MariaDB", 0},
+	compatible{mysqlDriver{}, config.TiDB, "TiDB", 4000},
+	compatible{mysqlDriver{}, config.OceanBase, "OceanBase（MySQL 模式）", 2881},
+	compatible{mysqlDriver{}, config.GoldenDB, "金篆 GoldenDB", 0},
+	compatible{mysqlDriver{}, config.TDSQLMySQL, "TDSQL MySQL 版", 0},
+	compatible{mysqlDriver{}, config.PolarDBMySQL, "PolarDB MySQL / PolarDB-X", 0},
+	compatible{mysqlDriver{}, config.GreatSQL, "GreatSQL", 0},
+	compatible{mysqlDriver{}, config.GBase8a, "南大通用 GBase 8a", 5258},
+	compatible{postgresDriver{}, config.PolarDBPostgres, "PolarDB PostgreSQL", 0},
+	compatible{postgresDriver{}, config.TDSQLPostgres, "TDSQL PG 版", 0},
+	compatible{postgresDriver{}, config.OpenTenBase, "OpenTenBase", 0},
+	compatible{postgresDriver{}, config.KWDB, "KWDB", 26257},
+}
+
+// compatible lists a database that speaks another one's protocol under its
+// own name, so users need not know which protocol to pick.
+type compatible struct {
+	driver
+	id          config.Driver
+	label       string
+	defaultPort int
+}
+
+func (database compatible) info() Info {
+	base := database.driver.info()
+	info := Info{ID: database.id, Label: database.label, DefaultPort: database.defaultPort, Protocol: base.ID}
+	if info.DefaultPort == 0 {
+		info.DefaultPort = base.DefaultPort
+	}
+	return info
 }
 
 func Drivers() []Info {

@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 
 	"github.com/pelletier/go-toml/v2"
@@ -21,7 +22,29 @@ const (
 	SQLServer Driver = "sqlserver"
 	Oracle    Driver = "oracle"
 	SQLite    Driver = "sqlite"
+
+	// Databases reached through the MySQL protocol.
+	MariaDB      Driver = "mariadb"
+	TiDB         Driver = "tidb"
+	OceanBase    Driver = "oceanbase"
+	GoldenDB     Driver = "goldendb"
+	TDSQLMySQL   Driver = "tdsql-mysql"
+	PolarDBMySQL Driver = "polardb-mysql"
+	GreatSQL     Driver = "greatsql"
+	GBase8a      Driver = "gbase8a"
+
+	// Databases reached through the PostgreSQL protocol.
+	PolarDBPostgres Driver = "polardb-pg"
+	TDSQLPostgres   Driver = "tdsql-pg"
+	OpenTenBase     Driver = "opentenbase"
+	KWDB            Driver = "kwdb"
 )
+
+var serverDrivers = []Driver{
+	Postgres, MySQL, SQLServer, Oracle,
+	MariaDB, TiDB, OceanBase, GoldenDB, TDSQLMySQL, PolarDBMySQL, GreatSQL, GBase8a,
+	PolarDBPostgres, TDSQLPostgres, OpenTenBase, KWDB,
+}
 
 type Connection struct {
 	Name     string            `toml:"-" json:"name"`
@@ -49,12 +72,12 @@ func (connection Connection) Validate() error {
 	if !namePattern.MatchString(connection.Name) {
 		return fmt.Errorf("连接名称 %q 只能包含字母、数字、点、下划线和连字符，且以字母或数字开头", connection.Name)
 	}
-	switch connection.Driver {
-	case Postgres, MySQL, SQLServer, Oracle:
+	switch {
+	case slices.Contains(serverDrivers, connection.Driver):
 		if connection.Host == "" {
 			return errors.New("主机不能为空")
 		}
-	case SQLite:
+	case connection.Driver == SQLite:
 		if connection.Database == "" {
 			return errors.New("数据库文件不能为空")
 		}
