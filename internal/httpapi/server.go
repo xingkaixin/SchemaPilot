@@ -30,13 +30,14 @@ type Server struct {
 	// loopbackOnly rejects requests whose Host is not a loopback name, which
 	// stops DNS-rebinding pages from driving a locally bound server.
 	loopbackOnly bool
+	version      string
 
 	configMu      sync.Mutex
 	arrangementMu sync.Mutex
 }
 
-func New(files workspace.Workspace, runs *runner.Manager, assets fs.FS, logger *slog.Logger, loopbackOnly bool) *Server {
-	return &Server{workspace: files, runs: runs, assets: assets, logger: logger, loopbackOnly: loopbackOnly}
+func New(files workspace.Workspace, runs *runner.Manager, assets fs.FS, logger *slog.Logger, loopbackOnly bool, version string) *Server {
+	return &Server{workspace: files, runs: runs, assets: assets, logger: logger, loopbackOnly: loopbackOnly, version: version}
 }
 
 func (server *Server) Handler() http.Handler {
@@ -46,6 +47,7 @@ func (server *Server) Handler() http.Handler {
 	mux.HandleFunc("DELETE /api/connections/{name}", server.deleteConnection)
 	mux.HandleFunc("POST /api/connections/test", server.testConnection)
 	mux.HandleFunc("PUT /api/arrangement", server.saveArrangement)
+	mux.HandleFunc("GET /api/package", server.exportPackage)
 	mux.HandleFunc("GET /api/file", server.getFile)
 	mux.HandleFunc("POST /api/files", server.importFiles)
 	mux.HandleFunc("POST /api/runs", server.startRun)

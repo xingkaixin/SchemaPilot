@@ -4,11 +4,15 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
+	"mime"
 	"net/http"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/schemapilot/schemapilot/internal/arrangement"
+	"github.com/schemapilot/schemapilot/internal/bundle"
 	"github.com/schemapilot/schemapilot/internal/config"
 	"github.com/schemapilot/schemapilot/internal/database"
 	"github.com/schemapilot/schemapilot/internal/runner"
@@ -125,6 +129,27 @@ func (server *Server) saveArrangement(response http.ResponseWriter, request *htt
 		return
 	}
 	writeJSON(response, http.StatusOK, map[string]string{"revision": revision})
+}
+
+func (server *Server) exportPackage(response http.ResponseWriter, request *http.Request) {
+	arranged, _, err := arrangement.Load(server.workspace.Root)
+	if err != nil {
+		writeError(response, http.StatusConflict, err.Error())
+		return
+	}
+	if arranged == nil {
+		writeError(response, http.StatusBadRequest, "还没有编排，无法导出")
+		return
+	}
+	var archive bytes.Buffer
+	if err := bundle.Export(&archive, server.workspace, *arranged, request.URL.Query()["connection"], server.version); err != nil {
+		writeError(response, http.StatusBadRequest, err.Error())
+		return
+	}
+	name := fmt.Sprintf("%s-%s.zip", filepath.Base(server.workspace.Root), time.Now().Format("20060102-150405"))
+	response.Header().Set("Content-Type", "application/zip")
+	response.Header().Set("Content-Disposition", mime.FormatMediaType("attachment", map[string]string{"filename": name}))
+	_, _ = response.Write(archive.Bytes())
 }
 
 type saveConnectionRequest struct {
