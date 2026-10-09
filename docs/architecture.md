@@ -2,9 +2,10 @@
 
 ```text
 browser (React + Kumo)                       schemapilot (Go)
-  arrangement + results  ── localStorage
-  polling ───────────────── HTTP API ── workspace: scan dir, read/import .sql
-                                     ── config:    schemapilot.toml
+  results  ─────────────── localStorage
+  polling ───────────────── HTTP API ── workspace:   scan dir, read/import .sql
+                                     ── config:      schemapilot.toml
+                                     ── arrangement: schemapilot.arrangement.json
                                      ── runner:    steps → lanes → files → statements
                                                      └─ database: postgres / mysql / sqlserver / oracle / sqlite / opengauss / dm / xugu drivers
                                                      └─ sqlscript: split files into statements
@@ -12,7 +13,8 @@ browser (React + Kumo)                       schemapilot (Go)
 
 ## Ownership
 
-- **The browser owns the arrangement and history.** Which connection a file belongs to, the step/lane order, disabled files and the last result of every file live in localStorage, keyed by the working directory. The server never stores them.
+- **The arrangement lives in the workspace.** The step/lane order, disabled files and files moved out of their connection directory are stored in `schemapilot.arrangement.json`, one step per line. `GET /api/workspace` returns it with a revision; the browser edits it in memory and writes it back with `PUT /api/arrangement`, which refuses a stale base revision so that a change made elsewhere is reloaded instead of overwritten. Each connection also records its driver, so a workspace opened elsewhere can spot a connection of another kind.
+- **The browser owns the history.** The last result of every file lives in localStorage, keyed by the working directory.
 - **The server owns the directory, the config file and the live run.** `GET /api/workspace` lists connections and files; files under `./<connection>/` carry that connection name so the browser can assign them. Saving a connection rewrites `schemapilot.toml`.
 - **A run is a plan the browser sends.** `POST /api/runs` takes `steps[lane][file]` already filtered (disabled files removed; when continuing, succeeded files removed). The runner keeps only the latest run per connection in memory; the browser polls `GET /api/runs/{connection}` and merges each file result into its history.
 
