@@ -41,6 +41,7 @@ export interface Arrangement {
 }
 
 export interface Workspace {
+  version: string;
   root: string;
   configFile: string;
   configExists: boolean;

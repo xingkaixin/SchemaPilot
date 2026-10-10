@@ -47,6 +47,7 @@ export function Sidebar({ workspace }: { workspace: Workspace }) {
       <div className="flex h-11 items-center gap-2 px-3">
         <Logo size={22} />
         <span className="text-[15px] font-bold tracking-[-0.01em]">SchemaPilot</span>
+        <span className="font-mono text-xs text-(--side-muted)">v{workspace.version}</span>
       </div>
 
       <section className="flex flex-col gap-0.5">
