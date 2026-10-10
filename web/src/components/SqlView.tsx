@@ -132,7 +132,7 @@ export function SqlView({
             "mr-1.5 w-[3px] shrink-0",
             status === "ok" && "bg-kumo-success/60",
             (status === "failed" || status === "cancelled") && "bg-kumo-danger",
-            status === "running" && "bg-kumo-brand",
+            status === "running" && "bg-kumo-info",
           )}
         />
         <span
@@ -211,7 +211,7 @@ function StatementLabel({
     tone = "text-kumo-danger font-medium";
   } else if (status === "running") {
     parts.push("执行中");
-    tone = "text-kumo-link font-medium";
+    tone = "text-kumo-info font-medium";
   } else if (result.status !== "running") {
     parts.push("未执行");
   } else {
@@ -226,7 +226,7 @@ function ErrorBox({ result }: { result: FileRun }) {
   const error = result.error!;
   return (
     <div className="bg-kumo-danger-tint pr-3 pb-2.5 pl-12">
-      <div className="flex flex-col gap-1 rounded-lg bg-kumo-base px-3 py-2.5 whitespace-normal ring ring-kumo-danger/30">
+      <div className="flex flex-col gap-1 rounded-(--r-lg) bg-kumo-base px-3 py-2.5 whitespace-normal ring ring-kumo-danger/30">
         <span className="text-[12.5px] leading-[18px] font-medium text-kumo-danger">
           {error.message}
         </span>

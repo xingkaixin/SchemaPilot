@@ -176,21 +176,21 @@ export function DetailPanel({
 function OutputLog({ result }: { result?: FileRun }) {
   const now = useNow(result?.status === "running");
   if (!result || result.status === "pending") {
-    return <p className="m-0 px-4 py-6 text-sm text-kumo-subtle">还没有执行记录。</p>;
+    return <p className="m-0 px-5 py-6 text-sm text-kumo-subtle">还没有执行记录。</p>;
   }
   const remaining = result.status === "running" ? result.statements - (result.current ?? 0) : 0;
   return (
     <div className="py-1">
       {result.logDropped ? (
-        <div className="px-4 py-2 text-xs text-kumo-subtle">
+        <div className="px-5 py-2 text-xs text-kumo-subtle">
           已省略更早的 {result.logDropped} 条记录
         </div>
       ) : null}
-      {result.message && <div className="px-4 py-2 text-sm text-kumo-danger">{result.message}</div>}
+      {result.message && <div className="px-5 py-2 text-sm text-kumo-danger">{result.message}</div>}
       {result.log.map((entry, index) => (
         <div
           key={index}
-          className="flex flex-col gap-0.5 border-b border-kumo-hairline/60 px-4 py-2 last:border-b-0"
+          className="flex flex-col gap-0.5 border-b border-kumo-hairline/60 px-5 py-2 last:border-b-0"
         >
           <div className="flex min-w-0 items-baseline gap-2">
             <span
@@ -229,21 +229,21 @@ function OutputLog({ result }: { result?: FileRun }) {
         </div>
       ))}
       {result.status === "running" && result.current != null && result.current > 0 && (
-        <div className="flex flex-col gap-0.5 bg-kumo-info-tint px-4 py-2">
+        <div className="flex flex-col gap-0.5 bg-kumo-info-tint px-5 py-2">
           <div className="flex items-baseline gap-2">
-            <span className="w-14 shrink-0 font-mono text-xs text-kumo-link">
+            <span className="w-14 shrink-0 font-mono text-xs text-kumo-info">
               {result.current}/{result.statements}
             </span>
             <span className="min-w-0 truncate font-mono text-[12.5px]">{result.currentText}</span>
           </div>
-          <span className="pl-16 text-xs text-kumo-link">
+          <span className="pl-16 text-xs text-kumo-info">
             执行中{" "}
             {result.currentStartedAt ? formatClock(now - Date.parse(result.currentStartedAt)) : ""}
           </span>
         </div>
       )}
       {remaining > 1 && (
-        <div className="px-4 py-2 text-sm text-kumo-placeholder">
+        <div className="px-5 py-2 text-sm text-kumo-placeholder">
           还有 {remaining - 1} 条语句等待执行
         </div>
       )}

@@ -90,17 +90,17 @@ export function Pipeline({
     : `${steps.length} 步 · ${paths.length} 个文件${tally("disabled") ? ` · ${tally("disabled")} 个禁用` : ""}`;
 
   return (
-    <section className="flex min-w-0 flex-[999_1_560px] flex-col rounded-xl bg-kumo-base shadow-xs ring ring-kumo-line">
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-kumo-hairline px-4 py-3">
+    <section className="flex min-w-0 flex-col rounded-(--r-xl) border border-kumo-line bg-kumo-base shadow-(--sh-card)">
+      <div className="flex min-h-12 flex-wrap items-center justify-between gap-3 border-b border-kumo-line px-[18px] py-2.5">
         <div className="flex min-w-0 flex-col gap-0.5">
           <div className="flex items-baseline gap-2">
-            <h2 className="m-0 text-lg font-semibold">执行顺序</h2>
-            <span className="text-sm text-kumo-subtle">
+            <h2 className="m-0 text-base font-semibold">执行顺序</h2>
+            <span className="text-xs text-kumo-subtle">
               {locked ? "运行中不能调整顺序" : summary}
             </span>
           </div>
           {hasDirectory && (
-            <span className="flex items-center gap-1.5 text-xs text-kumo-subtle">
+            <span className="flex items-center gap-1.5 text-[11px] text-kumo-subtle">
               <FolderSimpleIcon size={14} />
               自动包含 <span className="font-mono">./{name}/</span> 下的文件
             </span>
@@ -128,7 +128,7 @@ export function Pipeline({
       </div>
 
       {steps.length === 0 ? (
-        <div className="dot-grid flex flex-1 items-center justify-center px-6 py-12 text-center text-sm text-kumo-subtle">
+        <div className="dot-grid flex flex-1 items-center justify-center px-6 py-12 text-center text-kumo-subtle">
           <p className="m-0 max-w-sm">
             还没有文件。在左侧勾选未分配的文件并分配到 {name}，或在当前目录下创建{" "}
             <span className="font-mono text-[0.9em] text-kumo-default">./{name}/</span>{" "}
@@ -174,7 +174,7 @@ export function Pipeline({
         </DndContext>
       )}
 
-      <div className="border-t border-kumo-hairline px-4 py-2.5 text-sm text-kumo-subtle">
+      <div className="border-t border-kumo-line px-[18px] py-2.5 text-xs text-kumo-subtle">
         拖动左侧把手调整顺序：放在两步之间成为新的一步，放到某一步上与它并行执行。更多操作在每个文件的
         ⋯ 菜单里。
       </div>
@@ -210,10 +210,10 @@ function Gap({
 }
 
 const circleTone: Record<string, string> = {
-  succeeded: "bg-kumo-success text-white ring-0",
+  succeeded: "bg-kumo-brand text-white ring-0",
   failed: "bg-kumo-danger text-white ring-0",
-  running: "bg-kumo-info-tint text-kumo-link ring-2 ring-kumo-brand",
-  missing: "bg-kumo-warning text-white ring-0",
+  running: "bg-kumo-base text-kumo-info ring-2 ring-kumo-info",
+  missing: "bg-kumo-warning-tint text-kumo-warning ring-[1.5px] ring-kumo-warning",
   disabled:
     "bg-kumo-recessed text-kumo-subtle ring-0 outline-[1.5px] -outline-offset-[1.5px] outline-kumo-interact outline-dashed",
 };
@@ -269,7 +269,7 @@ function StepRow({
     content = render(step[0][0]);
   } else {
     content = (
-      <div className="flex flex-col gap-2 rounded-[18px] bg-kumo-recessed p-2">
+      <div className="flex flex-col gap-2 rounded-[18px] bg-(--sidebar) p-2">
         <div className="flex h-6 items-center gap-1.5 px-1.5 text-xs text-kumo-subtle">
           <GitForkIcon size={14} />
           并行 {step.length} 路 · 全部完成后{last ? "结束" : `进入第 ${index + 2} 步`}
@@ -315,7 +315,7 @@ function StepRow({
         {!last && (
           <span
             className={cn(
-              "absolute -bottom-10 left-[27px] w-[1.5px] bg-kumo-fill",
+              "absolute -bottom-10 left-[27px] w-[1.5px] bg-kumo-interact",
               parallel ? "top-5" : "top-7",
             )}
           />
@@ -325,12 +325,12 @@ function StepRow({
         ref={setNodeRef}
         className={cn(
           "min-w-0 rounded-[20px]",
-          isOver && "bg-kumo-info-tint outline-2 outline-kumo-brand outline-dashed",
+          isOver && "bg-(--primary-tint) outline-2 outline-kumo-brand outline-dashed",
         )}
       >
         {content}
         {isOver && (
-          <div className="m-1.5 flex h-11 items-center justify-center rounded-[10px] bg-kumo-brand/10 text-sm font-medium text-kumo-link">
+          <div className="m-1.5 flex h-11 items-center justify-center rounded-(--r-xl) bg-kumo-brand/10 font-medium text-kumo-link">
             松开：加入第 {index + 1} 步并行执行
           </div>
         )}

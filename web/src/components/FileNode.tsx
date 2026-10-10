@@ -86,7 +86,7 @@ export function FileNode({
     case "running":
       meta = `语句 ${result?.current ?? 0} / ${result?.statements ?? "?"}`;
       side = result?.startedAt ? formatClock(now - Date.parse(result.startedAt)) : "";
-      tone = "text-kumo-link font-mono";
+      tone = "text-kumo-info font-mono";
       break;
     case "succeeded":
       if (result && result.rowsAffected > 0) meta = `${result.rowsAffected.toLocaleString()} 行`;
@@ -108,13 +108,13 @@ export function FileNode({
     <div
       ref={setNodeRef}
       className={cn(
-        "group flex h-14 min-w-0 items-center gap-1 rounded-[10px] bg-kumo-base pr-1.5 pl-0.5 shadow-xs ring ring-kumo-line",
+        "group flex h-14 min-w-0 items-center gap-1 rounded-(--r-xl) bg-kumo-base pr-1.5 pl-0.5 shadow-(--sh-card) ring ring-kumo-line",
         (state === "running" || settled) && "run-sweep",
         state === "running" && "run-sweep-running",
         settled === "succeeded" && "run-sweep-succeeded",
         settled === "failed" && "run-sweep-failed run-shake",
         selected && "ring-2 ring-kumo-brand",
-        state === "running" && "bg-kumo-info-tint ring-2 ring-kumo-brand",
+        state === "running" && "ring-2 ring-kumo-info",
         state === "failed" && "ring-2 ring-kumo-danger",
         state === "missing" && "ring-[1.5px] ring-kumo-warning",
         state === "disabled" &&
@@ -145,10 +145,7 @@ export function FileNode({
         </span>
         <span className="flex min-w-0 flex-1 flex-col">
           <span
-            className={cn(
-              "truncate font-mono text-sm font-medium",
-              state === "disabled" && "line-through",
-            )}
+            className={cn("truncate font-mono font-medium", state === "disabled" && "line-through")}
           >
             {fileName(path)}
           </span>
@@ -158,7 +155,7 @@ export function FileNode({
               state === "failed"
                 ? "text-kumo-danger"
                 : state === "running"
-                  ? "text-kumo-link"
+                  ? "text-kumo-info"
                   : "text-kumo-subtle",
               state === "missing" && "font-mono",
             )}
@@ -168,7 +165,7 @@ export function FileNode({
         </span>
         <span
           className={cn(
-            "shrink-0 text-sm whitespace-nowrap text-kumo-subtle",
+            "shrink-0 text-xs whitespace-nowrap text-kumo-subtle",
             tone,
             state === "waiting" && "run-text-shimmer",
           )}
@@ -274,9 +271,9 @@ function useSettled(state: NodeState) {
 
 export function DragGhost({ path }: { path: string }) {
   return (
-    <div className="flex h-11 w-72 rotate-[-2deg] items-center gap-2 rounded-[10px] bg-kumo-base px-3 shadow-lg ring-[1.5px] ring-kumo-brand">
+    <div className="flex h-11 w-72 rotate-[-2deg] items-center gap-2 rounded-(--r-xl) bg-kumo-base px-3 shadow-(--sh-pop) ring-[1.5px] ring-kumo-brand">
       <DotsSixVerticalIcon size={16} weight="bold" className="text-kumo-subtle" />
-      <span className="truncate font-mono text-sm font-medium">{fileName(path)}</span>
+      <span className="truncate font-mono font-medium">{fileName(path)}</span>
     </div>
   );
 }
