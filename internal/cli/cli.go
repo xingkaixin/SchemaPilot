@@ -24,7 +24,7 @@ import (
 	"github.com/schemapilot/schemapilot/internal/workspace"
 )
 
-var Version = "dev"
+var Version = "0.1.0"
 
 const defaultListen = "127.0.0.1:8080"
 

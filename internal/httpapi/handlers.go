@@ -32,6 +32,7 @@ type workspaceFile struct {
 }
 
 type workspaceResponse struct {
+	Version      string              `json:"version"`
 	Root         string              `json:"root"`
 	ConfigFile   string              `json:"configFile"`
 	ConfigExists bool                `json:"configExists"`
@@ -49,6 +50,7 @@ type workspaceResponse struct {
 func (server *Server) getWorkspace(response http.ResponseWriter, _ *http.Request) {
 	loaded, exists, loadErr := config.Load(server.workspace.Root)
 	result := workspaceResponse{
+		Version:      server.version,
 		Root:         server.workspace.Root,
 		ConfigFile:   config.FileName,
 		ConfigExists: exists,
