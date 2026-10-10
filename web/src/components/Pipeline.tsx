@@ -1,5 +1,5 @@
 import { Fragment, useState, type ReactNode } from "react";
-import { Button, cn } from "@cloudflare/kumo";
+import { cn } from "@cloudflare/kumo";
 import {
   DndContext,
   DragOverlay,
@@ -30,6 +30,7 @@ import {
 } from "../lib/arrangement";
 import { nodeState, stepState, type ConnectionState, type NodeState } from "../lib/model";
 import { useStore } from "../store";
+import { Button } from "./Button";
 import { DragGhost, FileNode, type NodeActions } from "./FileNode";
 
 // Prefer the narrow insertion zones over the step container they sit in.
@@ -108,13 +109,19 @@ export function Pipeline({
         <div className="flex gap-1">
           <Button
             variant="ghost"
+            size="sm"
             icon={SortAscendingIcon}
             disabled={locked || paths.length < 2}
             onClick={() => arrange(name, (current) => arrangeByName(allPaths(current)))}
           >
             按文件名重排
           </Button>
-          <Button variant="ghost" disabled={locked || paths.length === 0} onClick={onClear}>
+          <Button
+            variant="ghost"
+            size="sm"
+            disabled={locked || paths.length === 0}
+            onClick={onClear}
+          >
             清空编排
           </Button>
         </div>

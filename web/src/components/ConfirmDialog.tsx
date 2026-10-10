@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
-import { Button, Dialog } from "@cloudflare/kumo";
+import { Dialog } from "@cloudflare/kumo";
+import { Button } from "./Button";
 
 export function ConfirmDialog({
   open,
@@ -22,17 +23,19 @@ export function ConfirmDialog({
 }) {
   return (
     <Dialog.Root open={open} onOpenChange={(next) => !next && onClose()}>
-      <Dialog size="base" className="flex flex-col gap-4 p-5">
-        <div className="flex flex-col gap-1.5">
-          <Dialog.Title className="m-0 text-lg font-semibold">{title}</Dialog.Title>
-          <Dialog.Description className="m-0 text-kumo-subtle">{description}</Dialog.Description>
+      <Dialog size="base" className={dialogClass}>
+        <div className="flex flex-col gap-1 px-6 pt-5 pb-4">
+          <Dialog.Title className="m-0 text-base font-semibold">{title}</Dialog.Title>
+          <Dialog.Description className="m-0 text-sm text-kumo-subtle">
+            {description}
+          </Dialog.Description>
         </div>
-        <div className="flex justify-end gap-2">
+        <div className={dialogFooterClass}>
           <Button variant="ghost" onClick={onClose}>
             {cancelLabel}
           </Button>
           <Button
-            variant={destructive ? "destructive" : "primary"}
+            variant={destructive ? "danger-solid" : "primary"}
             onClick={() => {
               onConfirm();
               onClose();
@@ -45,3 +48,8 @@ export function ConfirmDialog({
     </Dialog.Root>
   );
 }
+
+export const dialogClass = "flex flex-col rounded-(--r-dialog) p-0 shadow-(--sh-dialog)";
+
+export const dialogFooterClass =
+  "flex flex-wrap items-center justify-end gap-2 rounded-b-(--r-dialog) border-t border-kumo-line bg-(--panel) px-6 py-3.5";

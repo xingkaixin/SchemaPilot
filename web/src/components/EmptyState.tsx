@@ -1,7 +1,7 @@
-import { Button } from "@cloudflare/kumo";
 import { DatabaseIcon, PlusIcon } from "@phosphor-icons/react";
 import type { Workspace } from "../api";
 import { useUi } from "../ui";
+import { Button } from "./Button";
 
 export function EmptyState({ workspace }: { workspace: Workspace }) {
   const openConnectionDialog = useUi((ui) => ui.openConnectionDialog);

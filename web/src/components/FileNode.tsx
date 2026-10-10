@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Button, DropdownMenu, cn } from "@cloudflare/kumo";
+import { DropdownMenu, cn } from "@cloudflare/kumo";
 import { useDraggable } from "@dnd-kit/core";
 import {
   ArrowArcLeftIcon,
@@ -24,6 +24,7 @@ import {
   type NodeState,
 } from "../lib/model";
 import { useNow } from "../lib/useNow";
+import { Button } from "./Button";
 import { StatusIcon } from "./StatusIcon";
 
 export interface NodeActions {
@@ -181,7 +182,6 @@ export function FileNode({
             <Button
               variant="ghost"
               size="sm"
-              shape="square"
               icon={DotsThreeIcon}
               aria-label={`${fileName(path)} 的更多操作`}
             />

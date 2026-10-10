@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Badge, Banner, Button, DropdownMenu, Loader, Meter } from "@cloudflare/kumo";
+import { DropdownMenu, Loader } from "@cloudflare/kumo";
 import {
   ArrowCounterClockwiseIcon,
   DownloadSimpleIcon,
@@ -7,9 +7,6 @@ import {
   FileTextIcon,
   PlayIcon,
   StopIcon,
-  WarningCircleIcon,
-  WarningIcon,
-  XCircleIcon,
 } from "@phosphor-icons/react";
 import { useQueryClient } from "@tanstack/react-query";
 import { api, type Connection, type Workspace } from "../api";
@@ -28,10 +25,11 @@ import { useNow } from "../lib/useNow";
 import { useStore } from "../store";
 import { notifyError } from "../toasts";
 import { useUi } from "../ui";
+import { Button } from "./Button";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { DetailPanel } from "./DetailPanel";
+import { Note } from "./Note";
 import { Pipeline } from "./Pipeline";
-import { driverBadge } from "../lib/driver";
 import { exportReport, type ExportFormat } from "../lib/exportReport";
 import { canExport } from "../lib/report";
 
@@ -113,7 +111,7 @@ export function ConnectionView({
         <div className="flex min-w-0 flex-col gap-1">
           <div className="flex items-center gap-2">
             <h1 className="m-0 text-xl font-semibold">{name}</h1>
-            <Badge variant={driverBadge(driver)}>{driver?.label ?? connection.driver}</Badge>
+            <span className="tag">{driver?.label ?? connection.driver}</span>
           </div>
           <span className="truncate font-mono text-sm text-kumo-subtle">{address}</span>
         </div>
@@ -143,7 +141,7 @@ export function ConnectionView({
             编辑连接
           </Button>
           {overview.running ? (
-            <Button variant="destructive" icon={StopIcon} onClick={() => setConfirm("stop")}>
+            <Button variant="danger-solid" icon={StopIcon} onClick={() => setConfirm("stop")}>
               停止
             </Button>
           ) : overview.anySucceeded && !overview.allSucceeded ? (
@@ -190,9 +188,8 @@ export function ConnectionView({
       </div>
 
       {driverMismatch && (
-        <Banner
-          variant="error"
-          icon={<WarningIcon weight="fill" />}
+        <Note
+          tone="danger"
           title={`编排是按 ${workspace.drivers.find((item) => item.id === arrangedDriver)?.label ?? arrangedDriver} 准备的，这个连接配置的是 ${driver?.label ?? connection.driver}`}
           description="不同数据库的 SQL 语法不同，暂时不能运行。确认是同一类数据库、或连接配错了，修改连接后即可；确认无误也可以改为以当前连接类型为准。"
           action={
@@ -204,9 +201,8 @@ export function ConnectionView({
       )}
 
       {overview.missing.length > 0 && (
-        <Banner
-          variant="alert"
-          icon={<WarningIcon weight="fill" />}
+        <Note
+          tone="warn"
           title={`${overview.missing.length} 个文件已不存在，暂时无法运行`}
           description={
             <>
@@ -293,14 +289,7 @@ function OutcomeBanner({ state }: { state: ConnectionState }) {
   const run = state.lastRun;
   if (!run || (run.status !== "failed" && run.status !== "cancelled")) return null;
   if (run.error) {
-    return (
-      <Banner
-        variant="error"
-        icon={<XCircleIcon weight="fill" />}
-        title="无法连接数据库"
-        description={run.error}
-      />
-    );
+    return <Note tone="danger" title="无法连接数据库" description={run.error} />;
   }
   const broken = Object.values(state.results).find(
     (result) =>
@@ -312,18 +301,16 @@ function OutcomeBanner({ state }: { state: ConnectionState }) {
   const where = broken.error ? ` 的第 ${broken.error.index} 条语句` : "";
   if (broken.status === "cancelled") {
     return (
-      <Banner
-        variant="secondary"
-        icon={<WarningCircleIcon weight="fill" />}
+      <Note
+        tone="info"
         title={`执行已停止：第 ${stepNumber} 步 ${fileName(broken.path)}${where}被终止`}
         description="点“从失败处继续”会从这个文件的第 1 条语句重新开始，已成功的文件不会再执行。"
       />
     );
   }
   return (
-    <Banner
-      variant="error"
-      icon={<XCircleIcon weight="fill" />}
+    <Note
+      tone="danger"
       title={`执行已暂停：第 ${stepNumber} 步 ${fileName(broken.path)}${where}失败`}
       description={
         broken.executed > 0
@@ -353,12 +340,26 @@ function RunProgress({
         <Loader size="sm" className="text-kumo-brand" />
         <span className="font-medium">运行中</span>
       </div>
-      <Meter
-        className="min-w-0 flex-[1_1_280px]"
-        label={`已完成 ${done} / ${total} 个文件`}
-        customValue={current ? `正在执行 ${current}` : ""}
-        value={total ? Math.round((done / total) * 100) : 0}
-      />
+      <div className="flex min-w-0 flex-[1_1_280px] flex-col gap-1.5">
+        <div className="flex justify-between gap-3 text-xs">
+          <span className="shrink-0">
+            已完成 {done} / {total} 个文件
+          </span>
+          {current && (
+            <span className="truncate font-mono text-kumo-subtle">正在执行 {current}</span>
+          )}
+        </div>
+        <div
+          className="bar"
+          role="progressbar"
+          aria-label="已完成的文件"
+          aria-valuemin={0}
+          aria-valuemax={total}
+          aria-valuenow={done}
+        >
+          <i style={{ width: `${total ? (done / total) * 100 : 0}%` }} />
+        </div>
+      </div>
       <dl className="m-0 flex gap-6 text-sm">
         <div>
           <dt className="text-kumo-subtle">开始于</dt>

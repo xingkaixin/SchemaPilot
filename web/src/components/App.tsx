@@ -1,14 +1,16 @@
 import { useEffect, useState } from "react";
-import { Banner, Button, Empty, Loader } from "@cloudflare/kumo";
-import { UploadSimpleIcon, WarningCircleIcon, XCircleIcon } from "@phosphor-icons/react";
+import { Empty, Loader } from "@cloudflare/kumo";
+import { UploadSimpleIcon, WarningCircleIcon } from "@phosphor-icons/react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api";
 import { useStore } from "../store";
 import { notifyError, toasts } from "../toasts";
+import { Button } from "./Button";
 import { ConnectionDialog } from "./ConnectionDialog";
 import { ConnectionView } from "./ConnectionView";
 import { EmptyState } from "./EmptyState";
 import { Header } from "./Header";
+import { Note } from "./Note";
 import { RunSync } from "./RunSync";
 import { Sidebar } from "./Sidebar";
 
@@ -53,9 +55,8 @@ export function App() {
         <main className="flex min-w-0 flex-[999_1_560px] flex-col">
           {workspace.configError && (
             <div className="px-6 pt-5">
-              <Banner
-                variant="error"
-                icon={<XCircleIcon weight="fill" />}
+              <Note
+                tone="danger"
                 title={`${workspace.configFile} 无法解析`}
                 description={`${workspace.configError}。修正文件后点“重新扫描目录”。`}
               />

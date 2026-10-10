@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Badge, Button, Tooltip } from "@cloudflare/kumo";
+import { Tooltip } from "@cloudflare/kumo";
 import {
   ArrowClockwiseIcon,
   FileTextIcon,
@@ -7,6 +7,7 @@ import {
   PackageIcon,
 } from "@phosphor-icons/react";
 import type { Workspace } from "../api";
+import { Button } from "./Button";
 import { PackageDialog } from "./PackageDialog";
 import { Logo } from "./Logo";
 
@@ -45,12 +46,12 @@ export function Header({
           )}
           {workspace.configError ? (
             <Tooltip content={workspace.configError}>
-              <Badge variant="error">解析失败</Badge>
+              <span className="st st-sm st-red">解析失败</span>
             </Tooltip>
           ) : workspace.configExists ? (
-            <Badge variant="success">已同步</Badge>
+            <span className="st st-sm st-green">已同步</span>
           ) : (
-            <Badge variant="neutral">添加连接后创建</Badge>
+            <span className="st st-sm st-gray">添加连接后创建</span>
           )}
         </span>
       </div>

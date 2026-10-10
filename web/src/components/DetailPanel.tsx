@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Badge, Button, Loader, Tabs, cn } from "@cloudflare/kumo";
+import { Loader, cn } from "@cloudflare/kumo";
 import { XIcon } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
 import { api, type Connection, type FileRun, type WorkspaceFile } from "../api";
@@ -15,21 +15,25 @@ import {
 } from "../lib/model";
 import { useNow } from "../lib/useNow";
 import { useStore } from "../store";
+import { Button } from "./Button";
 import { SqlView } from "./SqlView";
 
-const badges: Partial<
-  Record<NodeState, [string, "success" | "error" | "info" | "warning" | "neutral"]>
-> = {
-  idle: ["待执行", "neutral"],
-  waiting: ["等待中", "neutral"],
-  notRun: ["未执行", "neutral"],
-  running: ["执行中", "info"],
-  succeeded: ["成功", "success"],
-  failed: ["失败", "error"],
-  cancelled: ["已终止", "error"],
-  disabled: ["已禁用", "neutral"],
-  missing: ["文件不存在", "warning"],
+const badges: Partial<Record<NodeState, [string, "green" | "red" | "blue" | "orange" | "gray"]>> = {
+  idle: ["待执行", "gray"],
+  waiting: ["等待中", "gray"],
+  notRun: ["未执行", "gray"],
+  running: ["执行中", "blue"],
+  succeeded: ["成功", "green"],
+  failed: ["失败", "red"],
+  cancelled: ["已终止", "red"],
+  disabled: ["已禁用", "gray"],
+  missing: ["文件不存在", "orange"],
 };
+
+const tabs = [
+  { value: "sql", label: "SQL 内容" },
+  { value: "output", label: "执行输出" },
+];
 
 export function DetailPanel({
   path,
@@ -64,28 +68,32 @@ export function DetailPanel({
         <div className="flex items-center justify-between gap-2">
           <div className="flex min-w-0 items-center gap-2">
             <span className="truncate font-mono text-base font-medium">{fileName(path)}</span>
-            {stepIndex >= 0 && <Badge variant="neutral">第 {stepIndex + 1} 步</Badge>}
-            {badge && <Badge variant={badge[1]}>{badge[0]}</Badge>}
+            {stepIndex >= 0 && <span className="tag">第 {stepIndex + 1} 步</span>}
+            {badge && <span className={`st st-sm st-${badge[1]}`}>{badge[0]}</span>}
           </div>
           <Button
             variant="ghost"
             size="sm"
-            shape="square"
             icon={XIcon}
             aria-label="关闭详情"
             onClick={() => selectFile(undefined)}
           />
         </div>
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <Tabs
-            size="sm"
-            value={tab}
-            onValueChange={setTab}
-            tabs={[
-              { value: "sql", label: "SQL 内容" },
-              { value: "output", label: "执行输出" },
-            ]}
-          />
+          <div role="tablist" className="-mb-3 flex">
+            {tabs.map((item) => (
+              <button
+                key={item.value}
+                type="button"
+                role="tab"
+                className="tab"
+                aria-selected={tab === item.value}
+                onClick={() => setTab(item.value)}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
           {arranged && connection && (
             <Button size="sm" onClick={() => setDisabled(connection.name, [path], !disabled)}>
               {disabled ? "启用" : "禁用"}

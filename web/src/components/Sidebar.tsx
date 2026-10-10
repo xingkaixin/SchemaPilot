@@ -1,4 +1,4 @@
-import { Button, Checkbox, DropdownMenu, Loader, cn } from "@cloudflare/kumo";
+import { Checkbox, DropdownMenu, Loader, cn } from "@cloudflare/kumo";
 import {
   CaretDownIcon,
   CheckCircleIcon,
@@ -14,6 +14,7 @@ import { fileName, type ConnectionState } from "../lib/model";
 import { useStore } from "../store";
 import { useUi } from "../ui";
 import { driverTone } from "../lib/driver";
+import { Button } from "./Button";
 
 export function Sidebar({ workspace }: { workspace: Workspace }) {
   const connections = useStore((state) => state.connections);
@@ -49,7 +50,6 @@ export function Sidebar({ workspace }: { workspace: Workspace }) {
           <Button
             variant="ghost"
             size="xs"
-            shape="square"
             icon={PlusIcon}
             aria-label="添加连接"
             onClick={() => openConnectionDialog()}
@@ -144,7 +144,7 @@ export function Sidebar({ workspace }: { workspace: Workspace }) {
             <DropdownMenu>
               <DropdownMenu.Trigger
                 render={
-                  <Button size="sm" variant="secondary">
+                  <Button size="sm">
                     分配到…
                     <CaretDownIcon size={14} />
                   </Button>

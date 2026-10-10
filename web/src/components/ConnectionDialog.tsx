@@ -1,21 +1,14 @@
 import { useState } from "react";
-import {
-  Banner,
-  Button,
-  Collapsible,
-  Dialog,
-  Input,
-  Select,
-  SensitiveInput,
-  cn,
-} from "@cloudflare/kumo";
-import { CheckCircleIcon, DatabaseIcon, XCircleIcon, XIcon } from "@phosphor-icons/react";
+import { Collapsible, Dialog, Input, Select, SensitiveInput, cn } from "@cloudflare/kumo";
+import { DatabaseIcon, XIcon } from "@phosphor-icons/react";
 import { useQueryClient } from "@tanstack/react-query";
 import { api, type Connection, type DriverInfo, type TestResult, type Workspace } from "../api";
 import { useStore } from "../store";
 import { notifyError } from "../toasts";
 import { useUi, type ConnectionPreset } from "../ui";
-import { ConfirmDialog } from "./ConfirmDialog";
+import { Button } from "./Button";
+import { ConfirmDialog, dialogClass, dialogFooterClass } from "./ConfirmDialog";
+import { Note } from "./Note";
 import { driverDatabaseLabel, driverParamsExample, driverTone } from "../lib/driver";
 
 interface Draft {
@@ -64,7 +57,7 @@ export function ConnectionDialog({ workspace }: { workspace: Workspace }) {
   const formKey = `${open}-${editing ?? preset?.name ?? ""}`;
   return (
     <Dialog.Root open={open} onOpenChange={(next) => !next && close()}>
-      <Dialog size="lg" className="p-0">
+      <Dialog size="lg" className={dialogClass}>
         <ConnectionForm
           key={formKey}
           workspace={workspace}
@@ -156,9 +149,9 @@ function ConnectionForm({
         void save();
       }}
     >
-      <div className="flex items-start justify-between gap-4 px-6 pt-5 pb-4">
+      <div className="flex items-start justify-between gap-4 px-6 pt-5 pb-3">
         <div className="flex flex-col gap-1">
-          <Dialog.Title className="m-0 text-lg font-semibold">
+          <Dialog.Title className="m-0 text-base font-semibold">
             {existing ? "编辑连接" : "添加数据库连接"}
           </Dialog.Title>
           <Dialog.Description className="m-0 text-sm text-kumo-subtle">
@@ -167,7 +160,7 @@ function ConnectionForm({
         </div>
         <Dialog.Close
           render={(props) => (
-            <Button {...props} variant="ghost" shape="square" icon={XIcon} aria-label="关闭" />
+            <Button {...props} variant="ghost" size="sm" icon={XIcon} aria-label="关闭" />
           )}
         />
       </div>
@@ -278,28 +271,18 @@ function ConnectionForm({
         </Collapsible.Root>
 
         {test && (
-          <Banner
-            size="sm"
-            variant={test.ok ? "default" : "error"}
-            icon={test.ok ? <CheckCircleIcon weight="fill" /> : <XCircleIcon weight="fill" />}
+          <Note
+            tone={test.ok ? "ok" : "danger"}
             title={test.ok ? "连接成功" : "连接失败"}
             description={
               test.ok ? `${test.result.version} · ${test.result.latencyMs} ms` : test.message
             }
           />
         )}
-        {error && (
-          <Banner
-            size="sm"
-            variant="error"
-            icon={<XCircleIcon weight="fill" />}
-            title="保存失败"
-            description={error}
-          />
-        )}
+        {error && <Note tone="danger" title="保存失败" description={error} />}
       </div>
 
-      <div className="flex items-center justify-between gap-2 border-t border-kumo-hairline px-6 py-3.5">
+      <div className={cn(dialogFooterClass, "justify-between")}>
         <div className="flex gap-2">
           <Button
             loading={testing}
@@ -309,7 +292,7 @@ function ConnectionForm({
             测试连接
           </Button>
           {existing && (
-            <Button variant="secondary-destructive" onClick={() => setConfirmDelete(true)}>
+            <Button variant="danger" onClick={() => setConfirmDelete(true)}>
               删除连接
             </Button>
           )}
