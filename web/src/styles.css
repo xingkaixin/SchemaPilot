@@ -1,6 +1,7 @@
 @source "../node_modules/@cloudflare/kumo/dist/**/*.{js,jsx,ts,tsx}";
 @import "@cloudflare/kumo/styles";
 @import "tailwindcss";
+@import "./forest.css";
 
 :root {
   color-scheme: light;
@@ -8,13 +9,14 @@
 
 body {
   margin: 0;
-  background: var(--color-kumo-canvas);
-  color: var(--text-color-kumo-default);
+  background: var(--sidebar);
+  color: var(--fg);
   -webkit-font-smoothing: antialiased;
 }
 
 .dot-grid {
-  background-image: radial-gradient(var(--color-kumo-fill) 1px, transparent 1px);
+  background-color: var(--panel);
+  background-image: radial-gradient(var(--border-strong) 1px, transparent 1px);
   background-size: 16px 16px;
 }
 
@@ -36,17 +38,17 @@ body {
   }
 
   .run-sweep-running::after {
-    --sweep-color: color-mix(in oklab, var(--color-kumo-brand) 16%, transparent);
+    --sweep-color: color-mix(in oklab, var(--info) 16%, transparent);
     animation: run-sweep 1.6s linear infinite;
   }
 
   .run-sweep-succeeded::after {
-    --sweep-color: color-mix(in oklab, var(--color-kumo-success) 24%, transparent);
+    --sweep-color: color-mix(in oklab, var(--tech-green) 24%, transparent);
     animation: run-sweep 0.7s cubic-bezier(0.2, 0, 0, 1) both;
   }
 
   .run-sweep-failed::after {
-    --sweep-color: color-mix(in oklab, var(--color-kumo-danger) 24%, transparent);
+    --sweep-color: color-mix(in oklab, var(--danger) 24%, transparent);
     animation: run-sweep 0.7s cubic-bezier(0.2, 0, 0, 1) both;
   }
 

@@ -1,0 +1,416 @@
+/* Forest design system: tokens and the component classes this app uses.
+   Kumo primitives pick up the palette through its semantic tokens below.
+   The app keeps its own fonts. */
+
+:root {
+  --sidebar: #eff1f0;
+  --sidebar-accent: #e4e8e6;
+  --panel: #f8faf9;
+  --bg: #fcfdfc;
+  --card: #ffffff;
+  --muted: #f4f6f5;
+  --fg: #171a19;
+  --fg-2: #262b29;
+  --muted-fg: #6b7370;
+  --placeholder: #9ca3a0;
+  --border: #e4e8e6;
+  --border-soft: rgba(228, 232, 230, 0.6);
+  --border-strong: #d2d9d6;
+  --primary: #1a4a35;
+  --green-dark: #2d6a4f;
+  --tech-green: #0fa958;
+  --primary-tint: rgba(26, 74, 53, 0.08);
+  --danger: #dc2626;
+  --danger-ink: #b91c1c;
+  --warning: #f59e0b;
+  --warning-ink: #8a4f06;
+  --info: #3b82f6;
+  --info-ink: #1d4ed8;
+
+  /* muted-fg is only 4.3:1 on the sidebar; secondary text there uses this. */
+  --side-muted: color-mix(in srgb, var(--muted-fg) 80%, var(--fg));
+
+  --r-sm: 4px;
+  --r-lg: 8px;
+  --r-xl: 12px;
+  --r-dialog: 16px;
+  --r-2xl: 24px;
+  --r-full: 9999px;
+
+  --sh-card: 0 1px 2px 0 rgba(0, 0, 0, 0.06), 0 0 1px 0 rgba(0, 0, 0, 0.03);
+  --sh-sm: 0 2px 4px 0 rgba(0, 0, 0, 0.05), 0 1px 2px -1px rgba(0, 0, 0, 0.05);
+  --sh-lg: 0 2px 4px 0 rgba(0, 0, 0, 0.05), 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+  --sh-pop: 0 4px 16px 0 rgba(16, 22, 26, 0.12), 0 2px 6px 0 rgba(16, 22, 26, 0.08);
+  --sh-dialog:
+    0 4px 16px 0 rgba(16, 22, 26, 0.12), 0 2px 6px 0 rgba(16, 22, 26, 0.08),
+    0 24px 48px -12px rgba(16, 22, 26, 0.18);
+
+  --ease-out: cubic-bezier(0, 0, 0.2, 1);
+  --ease-std: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-settle: cubic-bezier(0.22, 0.8, 0.36, 1);
+}
+
+/* Kumo declares its tokens inside layers, so these unlayered values win. */
+:root {
+  --text-color-kumo-default: var(--fg);
+  --text-color-kumo-strong: var(--fg);
+  --text-color-kumo-inverse: var(--card);
+  --text-color-kumo-subtle: var(--muted-fg);
+  --text-color-kumo-inactive: var(--border-strong);
+  --text-color-kumo-placeholder: var(--placeholder);
+  --text-color-kumo-brand: var(--primary);
+  --text-color-kumo-link: var(--primary);
+  --text-color-kumo-info: var(--info-ink);
+  --text-color-kumo-success: var(--primary);
+  --text-color-kumo-danger: var(--danger-ink);
+  --text-color-kumo-warning: var(--warning-ink);
+
+  --color-kumo-canvas: var(--sidebar);
+  --color-kumo-elevated: var(--panel);
+  --color-kumo-recessed: var(--muted);
+  --color-kumo-base: var(--card);
+  --color-kumo-tint: var(--muted);
+  /* Kumo paints checked checkboxes with contrast and highlighted menu items with overlay. */
+  --color-kumo-contrast: var(--primary);
+  --color-kumo-overlay: var(--primary-tint);
+  --color-kumo-control: var(--card);
+  --color-kumo-interact: var(--border-strong);
+  --color-kumo-fill: var(--sidebar-accent);
+  --color-kumo-fill-hover: var(--muted);
+  --color-kumo-brand: var(--primary);
+  --color-kumo-brand-hover: var(--green-dark);
+  --color-kumo-line: var(--border);
+  --color-kumo-hairline: var(--border);
+  --color-kumo-focus: var(--primary);
+  --color-kumo-info: var(--info);
+  --color-kumo-info-tint: rgba(59, 130, 246, 0.1);
+  --color-kumo-warning: var(--warning);
+  --color-kumo-warning-tint: rgba(245, 158, 11, 0.09);
+  --color-kumo-danger: var(--danger);
+  --color-kumo-danger-tint: rgba(220, 38, 38, 0.06);
+  --color-kumo-success: var(--tech-green);
+  --color-kumo-success-tint: var(--primary-tint);
+}
+
+/* Class names carry a prefix where Forest's own (outline, primary) would
+   collide with Tailwind utilities. */
+@layer components {
+  .btn {
+    display: inline-flex;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    height: 32px;
+    padding: 0 14px;
+    border: 0;
+    border-radius: var(--r-2xl);
+    background: transparent;
+    color: var(--fg);
+    font: inherit;
+    font-size: 13px;
+    font-weight: 500;
+    white-space: nowrap;
+    cursor: pointer;
+    user-select: none;
+    transition:
+      background-color 0.2s var(--ease-std),
+      box-shadow 0.2s var(--ease-std),
+      transform 0.2s var(--ease-out),
+      color 0.2s,
+      border-color 0.2s;
+  }
+  .btn:active:not(:disabled) {
+    transform: scale(0.97);
+  }
+  .btn:focus-visible {
+    outline: none;
+    box-shadow:
+      0 0 0 2px var(--bg),
+      0 0 0 4px var(--primary);
+  }
+  .btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  .btn-sm {
+    height: 28px;
+    padding: 0 12px;
+    font-size: 12px;
+  }
+  .btn-xs {
+    height: 24px;
+    padding: 0 10px;
+    border-radius: var(--r-lg);
+    font-size: 12px;
+  }
+  .btn-icon {
+    width: 32px;
+    padding: 0;
+  }
+  .btn-icon.btn-sm {
+    width: 28px;
+  }
+  .btn-icon.btn-xs {
+    width: 24px;
+  }
+  .btn-primary {
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+    color: #fff;
+    background: linear-gradient(
+      135deg,
+      var(--primary) 0%,
+      var(--green-dark) 50%,
+      var(--tech-green) 100%
+    );
+    box-shadow:
+      0 0 0 1px rgba(0, 0, 0, 0.15),
+      0 2px 4px rgba(0, 0, 0, 0.03);
+  }
+  .btn-primary::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    border-radius: inherit;
+    background: linear-gradient(rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0));
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.34);
+  }
+  .btn-primary::after {
+    content: "";
+    position: absolute;
+    inset: -12px;
+    z-index: -1;
+    background-image: radial-gradient(rgba(160, 235, 190, 0.9) 0.8px, transparent 1.2px);
+    background-size: 6px 6px;
+    opacity: 0.26;
+    mix-blend-mode: screen;
+    pointer-events: none;
+    transition: opacity 0.3s;
+  }
+  .btn-primary:hover:not(:disabled) {
+    box-shadow:
+      0 0 0 1px rgba(0, 0, 0, 0.15),
+      0 4px 14px -2px rgba(15, 169, 88, 0.45);
+  }
+  .btn-primary:hover:not(:disabled)::after {
+    opacity: 0.5;
+  }
+  .btn-outline {
+    border: 1px solid var(--border);
+    background: var(--bg);
+    box-shadow: var(--sh-sm);
+  }
+  .btn-outline:hover:not(:disabled) {
+    background: var(--muted);
+  }
+  .btn-ghost {
+    border-radius: var(--r-xl);
+    font-weight: 400;
+  }
+  .btn-ghost:hover:not(:disabled) {
+    background: rgba(228, 232, 230, 0.66);
+  }
+  .btn-icon.btn-ghost {
+    border-radius: var(--r-lg);
+    color: var(--muted-fg);
+  }
+  .btn-icon.btn-ghost:hover:not(:disabled) {
+    background: var(--sidebar-accent);
+    color: var(--fg);
+  }
+  .btn-danger {
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--danger-ink);
+  }
+  .btn-danger:hover:not(:disabled) {
+    border-color: rgba(220, 38, 38, 0.35);
+    background: rgba(220, 38, 38, 0.06);
+  }
+  .btn-danger-solid {
+    background: var(--danger);
+    color: #fff;
+  }
+  .btn-danger-solid:hover:not(:disabled) {
+    background: var(--danger-ink);
+  }
+
+  .spin {
+    display: inline-block;
+    flex-shrink: 0;
+    width: 13px;
+    height: 13px;
+    border: 2px solid currentColor;
+    border-right-color: transparent;
+    border-radius: var(--r-full);
+    animation: fs-spin 0.7s linear infinite;
+  }
+
+  .st {
+    display: inline-flex;
+    flex-shrink: 0;
+    align-items: center;
+    gap: 6px;
+    height: 22px;
+    padding: 0 9px 0 8px;
+    border-radius: var(--r-full);
+    font-size: 12px;
+    font-weight: 500;
+    white-space: nowrap;
+  }
+  .st::before {
+    content: "";
+    flex-shrink: 0;
+    width: 6px;
+    height: 6px;
+    border-radius: var(--r-full);
+    background: var(--dot, currentColor);
+  }
+  .st-sm {
+    height: 20px;
+    padding: 0 8px 0 7px;
+    font-size: 11px;
+  }
+  .st-green {
+    --dot: var(--tech-green);
+    background: var(--primary-tint);
+    color: var(--primary);
+  }
+  .st-orange {
+    --dot: #f97316;
+    background: rgba(249, 115, 22, 0.11);
+    color: #9a3412;
+  }
+  .st-blue {
+    --dot: var(--info);
+    background: rgba(59, 130, 246, 0.1);
+    color: var(--info-ink);
+  }
+  .st-red {
+    --dot: var(--danger);
+    background: rgba(220, 38, 38, 0.08);
+    color: var(--danger-ink);
+  }
+  .st-gray {
+    --dot: var(--placeholder);
+    background: var(--muted);
+    color: var(--muted-fg);
+  }
+
+  .tag {
+    display: inline-flex;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    height: 20px;
+    padding: 0 7px;
+    border-radius: 6px;
+    background: linear-gradient(rgba(234, 237, 235, 0.6), #eaedeb);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.52);
+    color: var(--muted-fg);
+    font-size: 11px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  .note {
+    display: flex;
+    gap: 8px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    font-size: 12px;
+    line-height: 1.6;
+  }
+  .note-danger {
+    background: rgba(220, 38, 38, 0.06);
+    box-shadow: inset 0 0 0 1px rgba(220, 38, 38, 0.16);
+    color: var(--danger-ink);
+  }
+  .note-warn {
+    background: rgba(245, 158, 11, 0.09);
+    box-shadow: inset 0 0 0 1px rgba(245, 158, 11, 0.24);
+    color: var(--warning-ink);
+  }
+  .note-ok {
+    background: rgba(26, 74, 53, 0.06);
+    box-shadow: inset 0 0 0 1px rgba(26, 74, 53, 0.14);
+    color: var(--primary);
+  }
+  .note-info {
+    background: var(--muted);
+    box-shadow: inset 0 0 0 1px var(--border);
+    color: var(--fg-2);
+  }
+
+  .bar {
+    height: 6px;
+    overflow: hidden;
+    border-radius: var(--r-full);
+    background: var(--sidebar-accent);
+  }
+  .bar > i {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    background: var(--info);
+    transition: width 0.3s var(--ease-out);
+  }
+
+  .tab {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    height: 40px;
+    padding: 0 10px;
+    border: 0;
+    background: transparent;
+    color: var(--muted-fg);
+    font: inherit;
+    font-size: 13px;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: color 0.15s;
+  }
+  .tab:hover {
+    color: var(--fg);
+  }
+  .tab[aria-selected="true"] {
+    color: var(--fg);
+    font-weight: 500;
+  }
+  .tab[aria-selected="true"]::after {
+    content: "";
+    position: absolute;
+    right: 10px;
+    bottom: -1px;
+    left: 10px;
+    height: 2px;
+    border-radius: 2px;
+    background: var(--primary);
+  }
+  .tab:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: -2px;
+  }
+}
+
+@keyframes fs-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .btn-primary::after {
+    animation: fs-drift 5s linear infinite;
+  }
+}
+
+@keyframes fs-drift {
+  to {
+    transform: translate(6px, -6px);
+  }
+}
