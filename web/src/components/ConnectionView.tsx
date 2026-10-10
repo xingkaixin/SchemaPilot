@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { DropdownMenu, Loader } from "@cloudflare/kumo";
+import { DropdownMenu } from "@cloudflare/kumo";
 import {
   ArrowCounterClockwiseIcon,
   DownloadSimpleIcon,
@@ -16,7 +16,6 @@ import {
   emptyConnection,
   fileName,
   formatClock,
-  nodeState,
   runOverview,
   type ConnectionState,
   type RunMode,
@@ -27,7 +26,6 @@ import { notifyError } from "../toasts";
 import { useUi } from "../ui";
 import { Button } from "./Button";
 import { ConfirmDialog } from "./ConfirmDialog";
-import { DetailPanel } from "./DetailPanel";
 import { Note } from "./Note";
 import { Pipeline } from "./Pipeline";
 import { exportReport, type ExportFormat } from "../lib/exportReport";
@@ -44,7 +42,6 @@ export function ConnectionView({
 }) {
   const name = connection.name;
   const state = useStore((store) => store.connections[name]) ?? emptyConnection();
-  const selectedFile = useStore((store) => store.selectedFile);
   const { prepareRun, applyRun, setDisabled, clear } = useStore.getState();
   const openConnectionDialog = useUi((ui) => ui.openConnectionDialog);
   const queryClient = useQueryClient();
@@ -106,14 +103,14 @@ export function ConnectionView({
   );
 
   return (
-    <div className="flex min-w-0 flex-col gap-4 px-6 pt-5 pb-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+    <div className="flex min-w-0 flex-col gap-5 px-6 pt-5 pb-7">
+      <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-4">
         <div className="flex min-w-0 flex-col gap-1">
-          <div className="flex items-center gap-2">
-            <h1 className="m-0 text-xl font-semibold">{name}</h1>
+          <div className="flex items-center gap-2.5">
+            <h1 className="m-0 text-[28px] leading-[34px] font-light tracking-[-0.01em]">{name}</h1>
             <span className="tag">{driver?.label ?? connection.driver}</span>
           </div>
-          <span className="truncate font-mono text-sm text-kumo-subtle">{address}</span>
+          <span className="truncate font-mono text-xs text-kumo-subtle">{address}</span>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <DropdownMenu>
@@ -231,28 +228,12 @@ export function ConnectionView({
         />
       )}
 
-      <div className="flex flex-wrap items-start gap-4">
-        <Pipeline
-          name={name}
-          state={state}
-          workspace={workspace}
-          onClear={() => setConfirm("clear")}
-        />
-        {selectedFile && (
-          <DetailPanel
-            key={selectedFile}
-            path={selectedFile}
-            file={workspace.files.find((file) => file.path === selectedFile)}
-            connection={allPaths(state.steps).includes(selectedFile) ? connection : undefined}
-            state={allPaths(state.steps).includes(selectedFile) ? state : undefined}
-            nodeState={
-              allPaths(state.steps).includes(selectedFile)
-                ? nodeState(selectedFile, state, existing)
-                : undefined
-            }
-          />
-        )}
-      </div>
+      <Pipeline
+        name={name}
+        state={state}
+        workspace={workspace}
+        onClear={() => setConfirm("clear")}
+      />
 
       <ConfirmDialog
         open={confirm === "stop"}
@@ -335,9 +316,9 @@ function RunProgress({
 }) {
   const now = useNow(true);
   return (
-    <div className="flex flex-wrap items-center gap-x-6 gap-y-3 rounded-xl bg-kumo-base px-4 py-3.5 shadow-xs ring ring-kumo-line">
+    <div className="flex flex-wrap items-center gap-x-6 gap-y-3 rounded-(--r-xl) border border-kumo-line bg-kumo-base px-[18px] py-3.5 shadow-(--sh-card)">
       <div className="flex items-center gap-2">
-        <Loader size="sm" className="text-kumo-brand" />
+        <span className="spin text-kumo-info" />
         <span className="font-medium">运行中</span>
       </div>
       <div className="flex min-w-0 flex-[1_1_280px] flex-col gap-1.5">
@@ -360,7 +341,7 @@ function RunProgress({
           <i style={{ width: `${total ? (done / total) * 100 : 0}%` }} />
         </div>
       </div>
-      <dl className="m-0 flex gap-6 text-sm">
+      <dl className="m-0 flex gap-6 text-xs">
         <div>
           <dt className="text-kumo-subtle">开始于</dt>
           <dd className="m-0 font-medium">

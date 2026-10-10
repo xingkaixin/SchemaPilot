@@ -1,4 +1,4 @@
-import { Checkbox, DropdownMenu, Loader, cn } from "@cloudflare/kumo";
+import { Checkbox, DropdownMenu, cn } from "@cloudflare/kumo";
 import {
   CaretDownIcon,
   CheckCircleIcon,
@@ -13,8 +13,8 @@ import { allPaths } from "../lib/arrangement";
 import { fileName, type ConnectionState } from "../lib/model";
 import { useStore } from "../store";
 import { useUi } from "../ui";
-import { driverTone } from "../lib/driver";
 import { Button } from "./Button";
+import { Logo } from "./Logo";
 
 export function Sidebar({ workspace }: { workspace: Workspace }) {
   const connections = useStore((state) => state.connections);
@@ -43,9 +43,14 @@ export function Sidebar({ workspace }: { workspace: Workspace }) {
     setChecked(value ? [...checked, path] : checked.filter((item) => item !== path));
 
   return (
-    <aside className="flex flex-[1_1_272px] flex-col gap-5 border-r border-kumo-hairline bg-kumo-base px-3 py-4">
-      <section className="flex flex-col gap-1">
-        <div className="flex h-7 items-center justify-between px-2.5 text-xs font-medium text-kumo-subtle">
+    <aside className="flex min-w-0 flex-[1_1_240px] flex-col gap-1.5 pb-2">
+      <div className="flex h-11 items-center gap-2 px-3">
+        <Logo size={22} />
+        <span className="text-[15px] font-bold tracking-[-0.01em]">SchemaPilot</span>
+      </div>
+
+      <section className="flex flex-col gap-0.5">
+        <div className={labelClass}>
           <span>数据库连接</span>
           <Button
             variant="ghost"
@@ -56,9 +61,14 @@ export function Sidebar({ workspace }: { workspace: Workspace }) {
           />
         </div>
         {workspace.connections.length === 0 && unconfigured.length === 0 ? (
-          <div className="flex flex-col gap-2.5 rounded-lg bg-kumo-recessed p-3 text-sm text-kumo-subtle">
+          <div className={cn(cardClass, "flex flex-col gap-2.5 p-3 text-kumo-subtle")}>
             <span>还没有连接。SQL 文件分配到连接后才能执行。</span>
-            <Button className="self-start" icon={PlusIcon} onClick={() => openConnectionDialog()}>
+            <Button
+              size="sm"
+              className="self-start"
+              icon={PlusIcon}
+              onClick={() => openConnectionDialog()}
+            >
               添加连接
             </Button>
           </div>
@@ -81,13 +91,16 @@ export function Sidebar({ workspace }: { workspace: Workspace }) {
               onClick={() =>
                 openConnectionDialog(undefined, { name: item.name, driver: item.driver })
               }
-              className="flex w-full cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 text-left outline-1 -outline-offset-1 outline-kumo-interact outline-dashed hover:bg-kumo-tint"
+              className={cn(
+                navClass,
+                "outline-1 -outline-offset-1 outline-kumo-interact outline-dashed",
+              )}
             >
-              <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-kumo-warning-tint text-kumo-warning">
-                <WarningIcon size={16} weight="fill" />
+              <span className="flex size-7 shrink-0 items-center justify-center rounded-(--r-lg) bg-kumo-warning-tint text-kumo-warning">
+                <WarningIcon size={16} />
               </span>
               <span className="flex min-w-0 flex-1 flex-col">
-                <span className="truncate font-medium">{item.name}</span>
+                <span className="truncate">{item.name}</span>
                 <span className="truncate text-xs text-kumo-warning">
                   未配置{label ? ` · ${label}` : ""} · {item.files} 个文件 · 点击配置
                 </span>
@@ -97,13 +110,13 @@ export function Sidebar({ workspace }: { workspace: Workspace }) {
         })}
       </section>
 
-      <section className="flex flex-col gap-1">
-        <div className="flex h-7 items-center justify-between px-2.5 text-xs font-medium text-kumo-subtle">
+      <section className="flex flex-col gap-0.5">
+        <div className={labelClass}>
           <span>未分配文件 · {unassigned.length}</span>
           {unassigned.length > 0 && (
             <button
               type="button"
-              className="cursor-pointer text-kumo-link hover:underline"
+              className="cursor-pointer font-medium text-kumo-link hover:underline"
               onClick={() => setChecked(allChecked ? [] : unassigned.map((file) => file.path))}
             >
               {allChecked ? "取消全选" : "全选"}
@@ -111,36 +124,42 @@ export function Sidebar({ workspace }: { workspace: Workspace }) {
           )}
         </div>
         {unassigned.length === 0 && (
-          <p className="m-0 px-2.5 py-1 text-sm text-kumo-subtle">没有未分配的文件</p>
+          <p className="m-0 px-3 py-1 text-(--side-muted)">没有未分配的文件</p>
         )}
-        {unassigned.map((file) => (
-          <div
-            key={file.path}
-            className={cn(
-              "flex items-start gap-2.5 rounded-lg px-2.5 py-2 hover:bg-kumo-tint",
-              checked.includes(file.path) && "bg-kumo-info-tint hover:bg-kumo-info-tint",
-              selectedFile === file.path && "ring-1 ring-kumo-line",
-            )}
-          >
-            <Checkbox
-              className="mt-0.5"
-              aria-label={`选择 ${file.path}`}
-              checked={checked.includes(file.path)}
-              onCheckedChange={(value) => toggle(file.path, value === true)}
-            />
-            <button
-              type="button"
-              className="flex min-w-0 cursor-pointer flex-col text-left"
-              onClick={() => selectFile(file.path)}
-            >
-              <span className="truncate font-mono text-sm font-medium">{fileName(file.path)}</span>
-              <span className="truncate font-mono text-xs text-kumo-subtle">./{file.path}</span>
-            </button>
+        {unassigned.length > 0 && (
+          <div className={cn(cardClass, "flex flex-col gap-0.5 p-1")}>
+            {unassigned.map((file) => (
+              <div
+                key={file.path}
+                className={cn(
+                  "flex items-start gap-2.5 rounded-(--r-lg) px-2 py-2 hover:bg-kumo-tint",
+                  checked.includes(file.path) && "bg-(--primary-tint) hover:bg-(--primary-tint)",
+                  selectedFile === file.path && "ring-[1.5px] ring-kumo-brand",
+                )}
+              >
+                <Checkbox
+                  className="mt-0.5"
+                  aria-label={`选择 ${file.path}`}
+                  checked={checked.includes(file.path)}
+                  onCheckedChange={(value) => toggle(file.path, value === true)}
+                />
+                <button
+                  type="button"
+                  className="flex min-w-0 cursor-pointer flex-col text-left"
+                  onClick={() => selectFile(file.path)}
+                >
+                  <span className="truncate font-mono font-medium">{fileName(file.path)}</span>
+                  <span className="truncate font-mono text-[11px] text-kumo-subtle">
+                    ./{file.path}
+                  </span>
+                </button>
+              </div>
+            ))}
           </div>
-        ))}
+        )}
         {checked.length > 0 && (
-          <div className="mt-1.5 flex items-center justify-between gap-2 rounded-xl bg-kumo-contrast py-2 pr-2 pl-3 text-kumo-inverse">
-            <span className="text-sm">已选 {checked.length} 个</span>
+          <div className="mt-1.5 flex items-center justify-between gap-2 rounded-(--r-xl) bg-(--fg) py-1.5 pr-1.5 pl-3 text-white">
+            <span>已选 {checked.length} 个</span>
             <DropdownMenu>
               <DropdownMenu.Trigger
                 render={
@@ -173,8 +192,9 @@ export function Sidebar({ workspace }: { workspace: Workspace }) {
         )}
       </section>
 
-      <div className="flex flex-col gap-2 rounded-xl bg-kumo-recessed p-3 text-sm text-kumo-subtle">
-        <span className="font-medium text-kumo-default">自动归属</span>
+      <div className="min-h-4 flex-1" />
+      <div className={cn(cardClass, "flex flex-col gap-1.5 p-3 text-xs text-kumo-subtle")}>
+        <span className="text-[13px] font-medium text-kumo-default">自动归属</span>
         <span>
           与连接同名的子目录会被递归扫描，例如{" "}
           <span className="font-mono text-[0.9em] text-kumo-default">./pg-main/</span> 下的 SQL
@@ -206,48 +226,41 @@ function ConnectionItem({
   const status = state?.lastRun?.status;
 
   let subtitle = `${driver?.label ?? connection.driver} · ${count} 个文件`;
-  let indicator = <span className="size-2 rounded-full bg-kumo-interact" />;
+  let indicator = <span className="mx-[5px] size-1.5 rounded-full bg-kumo-interact" />;
   if (status === "running") {
     subtitle = "运行中";
-    indicator = <Loader size="sm" className="text-kumo-brand" />;
+    indicator = <span className="spin size-3 text-kumo-info" />;
   } else if (status === "failed" || status === "cancelled") {
     subtitle = state?.lastRun?.error
       ? "连接失败"
       : status === "failed"
         ? "已暂停 · 有文件失败"
         : "已停止";
-    indicator = <XCircleIcon size={16} weight="fill" className="text-kumo-danger" />;
+    indicator = <XCircleIcon size={16} className="text-kumo-danger" />;
   } else if (status === "succeeded") {
-    indicator = <CheckCircleIcon size={16} weight="fill" className="text-kumo-success" />;
+    indicator = <CheckCircleIcon size={16} className="text-kumo-success" />;
   }
 
   return (
     <button
       type="button"
       onClick={() => select(connection.name)}
-      className={cn(
-        "flex w-full cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 text-left hover:bg-kumo-tint",
-        selected && "bg-kumo-tint ring-1 ring-kumo-line",
-      )}
+      aria-current={selected ? "page" : undefined}
+      className={cn(navClass, selected && "bg-(--sidebar-accent) hover:bg-(--sidebar-accent)")}
     >
-      <span
-        className={cn(
-          "flex size-7 shrink-0 items-center justify-center rounded-md",
-          driverTone(driver),
-        )}
-      >
+      <span className="flex size-7 shrink-0 items-center justify-center rounded-(--r-lg) bg-kumo-base text-(--fg-2) shadow-(--sh-card)">
         <DatabaseIcon size={16} />
       </span>
       <span className="flex min-w-0 flex-1 flex-col">
-        <span className="truncate font-medium">{connection.name}</span>
+        <span className={cn("truncate", selected && "font-medium")}>{connection.name}</span>
         <span
           className={cn(
             "truncate text-xs",
             status === "running"
-              ? "text-kumo-link"
+              ? "text-kumo-info"
               : status === "failed" || status === "cancelled"
                 ? "text-kumo-danger"
-                : "text-kumo-subtle",
+                : "text-(--side-muted)",
           )}
         >
           {subtitle}
@@ -257,3 +270,11 @@ function ConnectionItem({
     </button>
   );
 }
+
+const labelClass =
+  "flex items-center justify-between px-3 pt-2.5 pb-1 text-[11px] text-kumo-subtle";
+
+const navClass =
+  "flex w-full cursor-pointer items-center gap-2.5 rounded-(--r-xl) px-2 py-1.5 text-left transition-colors hover:bg-(--sidebar-accent)/66";
+
+const cardClass = "rounded-(--r-xl) border border-(--border-soft) bg-kumo-base shadow-(--sh-card)";

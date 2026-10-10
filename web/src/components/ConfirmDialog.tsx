@@ -25,7 +25,7 @@ export function ConfirmDialog({
     <Dialog.Root open={open} onOpenChange={(next) => !next && onClose()}>
       <Dialog size="base" className={dialogClass}>
         <div className="flex flex-col gap-1 px-6 pt-5 pb-4">
-          <Dialog.Title className="m-0 text-base font-semibold">{title}</Dialog.Title>
+          <Dialog.Title className="m-0 text-lg font-semibold">{title}</Dialog.Title>
           <Dialog.Description className="m-0 text-sm text-kumo-subtle">
             {description}
           </Dialog.Description>

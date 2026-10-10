@@ -16,11 +16,13 @@ export function EmptyState({ workspace }: { workspace: Workspace }) {
   return (
     <div className="flex flex-1 items-center justify-center px-6 py-16">
       <div className="flex max-w-[460px] flex-col items-center gap-5 text-center">
-        <span className="flex size-12 items-center justify-center rounded-xl bg-kumo-base text-kumo-subtle shadow-xs ring ring-kumo-line">
+        <span className="flex size-12 items-center justify-center rounded-(--r-xl) border border-kumo-line bg-kumo-base text-(--fg-2) shadow-(--sh-card)">
           <DatabaseIcon size={24} />
         </span>
         <div className="flex flex-col gap-1.5">
-          <h1 className="m-0 text-xl font-semibold">添加数据库连接，开始编排</h1>
+          <h1 className="m-0 text-[28px] leading-[34px] font-light tracking-[-0.01em]">
+            添加数据库连接，开始编排
+          </h1>
           <p className="m-0 text-kumo-subtle">
             {workspace.configExists ? (
               "配置文件里还没有连接。"
@@ -38,7 +40,7 @@ export function EmptyState({ workspace }: { workspace: Workspace }) {
         <Button variant="primary" icon={PlusIcon} onClick={() => openConnectionDialog()}>
           添加连接
         </Button>
-        <ol className="m-0 mt-2 flex w-full flex-col gap-2.5 rounded-xl bg-kumo-base p-4 text-left text-sm shadow-xs ring ring-kumo-line">
+        <ol className="m-0 mt-2 flex w-full flex-col gap-2.5 rounded-(--r-xl) border border-kumo-line bg-kumo-base p-4 text-left shadow-(--sh-card)">
           {steps.map((step, index) => (
             <li key={index} className="flex list-none gap-2.5">
               <span className="font-mono text-kumo-placeholder">{index + 1}</span>

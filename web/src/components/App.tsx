@@ -8,6 +8,7 @@ import { notifyError, toasts } from "../toasts";
 import { Button } from "./Button";
 import { ConnectionDialog } from "./ConnectionDialog";
 import { ConnectionView } from "./ConnectionView";
+import { DetailPanel } from "./DetailPanel";
 import { EmptyState } from "./EmptyState";
 import { Header } from "./Header";
 import { Note } from "./Note";
@@ -19,6 +20,7 @@ export function App() {
   const sync = useStore((store) => store.sync);
   const workspace = useStore((store) => store.workspace);
   const selected = useStore((store) => store.selectedConnection);
+  const selectedFile = useStore((store) => store.selectedFile);
   const dropping = useFileDrop();
 
   useEffect(() => {
@@ -44,37 +46,43 @@ export function App() {
 
   const connection = workspace.connections.find((item) => item.name === selected);
   return (
-    <div className="isolate flex min-h-dvh flex-col">
-      <Header
-        workspace={workspace}
-        refreshing={query.isFetching}
-        onRescan={() => query.refetch()}
-      />
-      <div className="flex flex-1 flex-wrap items-stretch">
-        <Sidebar workspace={workspace} />
-        <main className="flex min-w-0 flex-[999_1_560px] flex-col">
-          {workspace.configError && (
-            <div className="px-6 pt-5">
-              <Note
-                tone="danger"
-                title={`${workspace.configFile} 无法解析`}
-                description={`${workspace.configError}。修正文件后点“重新扫描目录”。`}
-              />
-            </div>
-          )}
-          {connection ? (
-            <ConnectionView key={connection.name} workspace={workspace} connection={connection} />
-          ) : (
-            <EmptyState workspace={workspace} />
-          )}
-        </main>
-      </div>
+    <div className="isolate flex min-h-dvh flex-wrap items-stretch gap-2 p-2">
+      <Sidebar workspace={workspace} />
+      <main className="flex min-w-0 flex-[999_1_560px] flex-col rounded-(--r-xl) border border-(--border-soft) bg-(--panel)">
+        <Header
+          workspace={workspace}
+          refreshing={query.isFetching}
+          onRescan={() => query.refetch()}
+        />
+        {workspace.configError && (
+          <div className="px-6 pt-5">
+            <Note
+              tone="danger"
+              title={`${workspace.configFile} 无法解析`}
+              description={`${workspace.configError}。修正文件后点“重新扫描目录”。`}
+            />
+          </div>
+        )}
+        {connection ? (
+          <ConnectionView key={connection.name} workspace={workspace} connection={connection} />
+        ) : (
+          <EmptyState workspace={workspace} />
+        )}
+      </main>
+      {connection && selectedFile && (
+        <DetailPanel
+          key={selectedFile}
+          path={selectedFile}
+          workspace={workspace}
+          connection={connection}
+        />
+      )}
       {workspace.connections.map((item) => (
         <RunSync key={item.name} name={item.name} />
       ))}
       <ConnectionDialog workspace={workspace} />
       {dropping && (
-        <div className="pointer-events-none fixed inset-3 z-50 flex items-center justify-center rounded-2xl bg-kumo-base/85 outline-2 outline-kumo-brand outline-dashed">
+        <div className="pointer-events-none fixed inset-3 z-50 flex items-center justify-center rounded-(--r-dialog) bg-kumo-base/85 outline-2 outline-kumo-brand outline-dashed">
           <div className="flex flex-col items-center gap-2 text-kumo-link">
             <UploadSimpleIcon size={32} />
             <span className="text-lg font-semibold">松开以复制到当前目录</span>

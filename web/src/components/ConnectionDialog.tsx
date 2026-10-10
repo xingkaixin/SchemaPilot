@@ -9,7 +9,7 @@ import { useUi, type ConnectionPreset } from "../ui";
 import { Button } from "./Button";
 import { ConfirmDialog, dialogClass, dialogFooterClass } from "./ConfirmDialog";
 import { Note } from "./Note";
-import { driverDatabaseLabel, driverParamsExample, driverTone } from "../lib/driver";
+import { driverDatabaseLabel, driverParamsExample } from "../lib/driver";
 
 interface Draft {
   name: string;
@@ -151,7 +151,7 @@ function ConnectionForm({
     >
       <div className="flex items-start justify-between gap-4 px-6 pt-5 pb-3">
         <div className="flex flex-col gap-1">
-          <Dialog.Title className="m-0 text-base font-semibold">
+          <Dialog.Title className="m-0 text-lg font-semibold">
             {existing ? "编辑连接" : "添加数据库连接"}
           </Dialog.Title>
           <Dialog.Description className="m-0 text-sm text-kumo-subtle">
@@ -324,9 +324,7 @@ function DriverOption({ driver, drivers }: { driver?: DriverInfo; drivers: Drive
   const protocol = drivers.find((item) => item.id === driver?.protocol);
   return (
     <span className="flex items-center gap-2.5">
-      <span
-        className={cn("flex size-5 items-center justify-center rounded-[5px]", driverTone(driver))}
-      >
+      <span className="flex size-5 items-center justify-center rounded-[5px] bg-kumo-tint text-(--fg-2)">
         <DatabaseIcon size={12} weight="bold" />
       </span>
       {driver?.label}

@@ -66,7 +66,7 @@ function PackageForm({ workspace, onClose }: { workspace: Workspace; onClose: ()
   return (
     <>
       <div className="flex flex-col gap-1 px-6 pt-5 pb-3">
-        <Dialog.Title className="m-0 text-base font-semibold">导出包</Dialog.Title>
+        <Dialog.Title className="m-0 text-lg font-semibold">导出包</Dialog.Title>
         <Dialog.Description className="m-0 text-sm text-kumo-subtle">
           包含所选连接的编排和 SQL 文件，不含连接地址和密码。在另一个目录运行{" "}
           <span className="font-mono text-[0.9em] text-kumo-default">schemapilot 包名.zip</span>{" "}

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Loader, cn } from "@cloudflare/kumo";
 import { XIcon } from "@phosphor-icons/react";
 import { useQuery } from "@tanstack/react-query";
-import { api, type Connection, type FileRun, type WorkspaceFile } from "../api";
+import { api, type Connection, type FileRun, type Workspace } from "../api";
 import { allPaths } from "../lib/arrangement";
 import {
   elapsed,
@@ -10,12 +10,13 @@ import {
   formatClock,
   formatDuration,
   formatSize,
-  type ConnectionState,
+  nodeState,
   type NodeState,
 } from "../lib/model";
 import { useNow } from "../lib/useNow";
 import { useStore } from "../store";
 import { Button } from "./Button";
+import { Note } from "./Note";
 import { SqlView } from "./SqlView";
 
 const badges: Partial<Record<NodeState, [string, "green" | "red" | "blue" | "orange" | "gray"]>> = {
@@ -37,75 +38,77 @@ const tabs = [
 
 export function DetailPanel({
   path,
-  file,
+  workspace,
   connection,
-  state,
-  nodeState,
 }: {
   path: string;
-  file?: WorkspaceFile;
-  connection?: Connection;
-  state?: ConnectionState;
-  nodeState?: NodeState;
+  workspace: Workspace;
+  connection: Connection;
 }) {
+  const state = useStore((store) => store.connections[connection.name]);
   const selectFile = useStore((store) => store.selectFile);
   const setDisabled = useStore((store) => store.setDisabled);
-  const result = state?.results[path];
+  const file = workspace.files.find((item) => item.path === path);
+  // Only a file arranged on this connection has a step, a run result and its driver's dialect.
+  const arranged = state && allPaths(state.steps).includes(path) ? state : undefined;
+  const driver = arranged ? connection.driver : undefined;
+  const result = arranged?.results[path];
   const [tab, setTab] = useState(() => (result?.status === "running" ? "output" : "sql"));
   const content = useQuery({
-    queryKey: ["file", path, connection?.driver, file?.modTime],
-    queryFn: () => api.file(path, connection?.driver),
+    queryKey: ["file", path, driver, file?.modTime],
+    queryFn: () => api.file(path, driver),
     enabled: Boolean(file),
   });
-  const stepIndex = state?.steps.findIndex((step) => allPaths([step]).includes(path)) ?? -1;
-  const badge = nodeState ? badges[nodeState] : undefined;
-  const arranged = Boolean(connection && stepIndex >= 0);
-  const disabled = Boolean(state?.disabled.includes(path));
+  const stepIndex = arranged?.steps.findIndex((step) => allPaths([step]).includes(path)) ?? -1;
+  const existing = new Set(workspace.files.map((item) => item.path));
+  const badge = arranged ? badges[nodeState(path, arranged, existing)] : undefined;
+  const disabled = Boolean(arranged?.disabled.includes(path));
 
   return (
-    <section className="flex min-w-0 flex-[1_1_420px] flex-col self-start rounded-xl bg-kumo-base shadow-xs ring ring-kumo-line">
-      <div className="flex flex-col gap-2.5 border-b border-kumo-hairline px-4 py-3">
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex min-w-0 items-center gap-2">
-            <span className="truncate font-mono text-base font-medium">{fileName(path)}</span>
-            {stepIndex >= 0 && <span className="tag">第 {stepIndex + 1} 步</span>}
-            {badge && <span className={`st st-sm st-${badge[1]}`}>{badge[0]}</span>}
-          </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            icon={XIcon}
-            aria-label="关闭详情"
-            onClick={() => selectFile(undefined)}
-          />
+    <aside
+      aria-label="文件详情"
+      className="sticky top-2 flex h-[calc(100dvh-16px)] min-w-0 flex-[1_1_400px] flex-col self-start overflow-hidden rounded-(--r-xl) border border-(--border-soft) bg-(--panel)"
+    >
+      <div className="flex min-h-[43px] shrink-0 items-center justify-between gap-3 border-b border-kumo-line py-1.5 pr-3 pl-5">
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="truncate font-mono text-base font-medium">{fileName(path)}</span>
+          {stepIndex >= 0 && <span className="tag">第 {stepIndex + 1} 步</span>}
+          {badge && <span className={`st st-sm st-${badge[1]}`}>{badge[0]}</span>}
         </div>
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div role="tablist" className="-mb-3 flex">
-            {tabs.map((item) => (
-              <button
-                key={item.value}
-                type="button"
-                role="tab"
-                className="tab"
-                aria-selected={tab === item.value}
-                onClick={() => setTab(item.value)}
-              >
-                {item.label}
-              </button>
-            ))}
-          </div>
-          {arranged && connection && (
-            <Button size="sm" onClick={() => setDisabled(connection.name, [path], !disabled)}>
-              {disabled ? "启用" : "禁用"}
-            </Button>
-          )}
+        <Button
+          variant="ghost"
+          size="sm"
+          icon={XIcon}
+          aria-label="关闭详情"
+          onClick={() => selectFile(undefined)}
+        />
+      </div>
+      <div className="flex shrink-0 items-center justify-between gap-2 border-b border-kumo-line pr-3 pl-2.5">
+        <div role="tablist" className="flex">
+          {tabs.map((item) => (
+            <button
+              key={item.value}
+              type="button"
+              role="tab"
+              className="tab"
+              aria-selected={tab === item.value}
+              onClick={() => setTab(item.value)}
+            >
+              {item.label}
+            </button>
+          ))}
         </div>
+        {arranged && (
+          <Button size="sm" onClick={() => setDisabled(connection.name, [path], !disabled)}>
+            {disabled ? "启用" : "禁用"}
+          </Button>
+        )}
       </div>
 
-      <div className="max-h-[640px] min-h-40 flex-1 overflow-y-auto">
+      <div className="min-h-0 flex-1 overflow-y-auto bg-kumo-base">
         {tab === "sql" ? (
           !file ? (
-            <p className="m-0 px-4 py-6 text-sm text-kumo-subtle">
+            <p className="m-0 px-5 py-6 text-sm text-kumo-subtle">
               文件已不在目录中，无法读取内容。
             </p>
           ) : content.isPending ? (
@@ -113,7 +116,7 @@ export function DetailPanel({
               <Loader />
             </div>
           ) : content.isError ? (
-            <p className="m-0 px-4 py-6 text-sm text-kumo-danger">{content.error.message}</p>
+            <p className="m-0 px-5 py-6 text-sm text-kumo-danger">{content.error.message}</p>
           ) : (
             <SqlView
               content={content.data.content}
@@ -128,21 +131,21 @@ export function DetailPanel({
       </div>
 
       {result && result.status === "failed" && result.executed > 0 && (
-        <div className="mx-4 mb-3 flex flex-col gap-1 rounded-lg bg-kumo-recessed px-3 py-2.5 text-sm">
-          <span className="font-medium">继续前确认</span>
-          <span className="text-kumo-subtle">
-            前 {result.executed} 条语句已提交，继续时这个文件会从第 1
-            条重新执行。请确认它们可以重复执行，或先在文件里调整。
-          </span>
+        <div className="shrink-0 border-t border-kumo-line px-5 pt-3.5">
+          <Note
+            tone="warn"
+            title="继续前确认"
+            description={`前 ${result.executed} 条语句已提交，继续时这个文件会从第 1 条重新执行。请确认它们可以重复执行，或先在文件里调整。`}
+          />
         </div>
       )}
 
-      <dl className="m-0 grid grid-cols-[64px_minmax(0,1fr)] gap-x-3 gap-y-2 rounded-b-xl border-t border-kumo-hairline bg-kumo-elevated px-4 py-3.5 text-sm">
-        <dt className="text-kumo-subtle">路径</dt>
+      <dl className="m-0 grid shrink-0 grid-cols-[72px_minmax(0,1fr)] gap-x-3 gap-y-2 border-t border-kumo-line px-5 py-3.5">
+        <dt className="pt-px text-xs text-kumo-subtle">路径</dt>
         <dd className="m-0 font-mono text-xs [overflow-wrap:anywhere]">./{path}</dd>
         {file && (
           <>
-            <dt className="text-kumo-subtle">文件</dt>
+            <dt className="pt-px text-xs text-kumo-subtle">文件</dt>
             <dd className="m-0">
               {file.statements != null ? `${file.statements} 条语句 · ` : ""}
               {formatSize(file.size)} · 修改于 {new Date(file.modTime).toLocaleString()}
@@ -151,7 +154,7 @@ export function DetailPanel({
         )}
         {result?.startedAt && (
           <>
-            <dt className="text-kumo-subtle">上次执行</dt>
+            <dt className="pt-px text-xs text-kumo-subtle">上次执行</dt>
             <dd className="m-0">
               {new Date(result.startedAt).toLocaleString()}
               {result.finishedAt &&
@@ -161,12 +164,12 @@ export function DetailPanel({
         )}
         {result?.status === "running" && result.session != null && (
           <>
-            <dt className="text-kumo-subtle">数据库会话</dt>
+            <dt className="pt-px text-xs text-kumo-subtle">数据库会话</dt>
             <dd className="m-0 font-mono">{result.session}</dd>
           </>
         )}
       </dl>
-    </section>
+    </aside>
   );
 }
 
